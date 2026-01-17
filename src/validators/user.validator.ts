@@ -1,0 +1,20 @@
+import { z } from 'zod';
+import { UserStatus } from '../models';
+
+export const createUserSchema = z.object({
+    roleId: z.string().min(1, 'Role ID is required'),
+    branchId: z.string().optional().nullable(),
+    name: z.string().min(1, 'Name is required'),
+    email: z.string().email('Invalid email address'),
+    password: z.string().min(6, 'Password must be at least 6 characters'),
+    status: z.nativeEnum(UserStatus).default(UserStatus.ACTIVE),
+});
+
+export const updateUserSchema = z.object({
+    roleId: z.string().optional(),
+    branchId: z.string().optional().nullable(),
+    name: z.string().optional(),
+    email: z.string().email().optional(),
+    password: z.string().min(6).optional(),
+    status: z.nativeEnum(UserStatus).optional(),
+});

@@ -1,0 +1,61 @@
+import mongoose, { Schema, Document, Model } from 'mongoose';
+
+export enum PurchaseOrderStatus {
+  OPEN = 'OPEN',
+  APPROVED = 'APPROVED',
+  CLOSED = 'CLOSED',
+}
+
+export interface IPurchaseOrder extends Document {
+  poId: mongoose.Types.ObjectId;
+  tenantId: mongoose.Types.ObjectId;
+  branchId: mongoose.Types.ObjectId;
+  vendorId: mongoose.Types.ObjectId;
+  createdBy: mongoose.Types.ObjectId;
+  approvedBy?: mongoose.Types.ObjectId | null;
+  poDate: Date;
+  deliveryDate?: Date | null;
+  status: PurchaseOrderStatus;
+  totalAmount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
+  {
+    tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
+    branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
+    vendorId: { type: Schema.Types.ObjectId, ref: 'Vendor', required: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    approvedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    poDate: { type: Date, default: Date.now },
+    deliveryDate: { type: Date, default: null },
+    status: { type: String, enum: Object.values(PurchaseOrderStatus), default: PurchaseOrderStatus.OPEN },
+    totalAmount: { type: Number, min: 0, default: 0 },
+  },
+  {
+    timestamps: true,
+    collection: 'purchase_orders',
+  }
+);
+
+PurchaseOrderSchema.virtual('poId').get(function (this: IPurchaseOrder) {
+  return this._id;
+});
+
+PurchaseOrderSchema.set('toJSON', {
+  virtuals: true,
+  transform: function (doc, ret: any) {
+    ret.poId = ret._id;
+    delete ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});
+
+PurchaseOrderSchema.index({ tenantId: 1, branchId: 1, status: 1 });
+PurchaseOrderSchema.index({ tenantId: 1, vendorId: 1 });
+PurchaseOrderSchema.index({ tenantId: 1, poDate: -1 });
+PurchaseOrderSchema.index({ tenantId: 1, createdBy: 1 });
+
+export const PurchaseOrder: Model<IPurchaseOrder> = mongoose.model<IPurchaseOrder>('PurchaseOrder', PurchaseOrderSchema);

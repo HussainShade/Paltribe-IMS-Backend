@@ -1,0 +1,76 @@
+import { GRN, GRNItem, PurchaseOrder, PurchaseOrderStatus } from '../models';
+import { InventoryService } from './inventory.service';
+import mongoose from 'mongoose';
+import { AppError } from '../utils/errors';
+
+export class GRNService {
+    static async createGRN(data: any, user: any) {
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            // Logic for PO linking
+            if (data.poId) {
+                const po = await PurchaseOrder.findOne({ _id: data.poId, tenantId: user.tenantId }).session(session);
+                if (!po) throw new AppError('PO not found', 404);
+                if (po.status !== PurchaseOrderStatus.APPROVED) throw new AppError('PO must be APPROVED', 400);
+            }
+
+            const grn = await GRN.create([{
+                tenantId: user.tenantId,
+                branchId: user.branchId,
+                poId: data.poId,
+                soId: data.soId,
+                vendorInvoiceNo: data.vendorInvoiceNo,
+                workAreaId: data.workAreaId,
+                createdBy: user._id,
+                totalAmount: 0 // Update later
+            }], { session });
+
+            let totalAmount = 0;
+            const itemsToCreate = data.items.map((item: any) => {
+                const itemTotal = (item.receivedQty * item.unitCost) + item.taxAmount;
+                totalAmount += itemTotal;
+                return {
+                    grnId: grn[0]._id,
+                    itemId: item.itemId,
+                    receivedQty: item.receivedQty,
+                    unitCost: item.unitCost,
+                    taxAmount: item.taxAmount,
+                    totalAmount: itemTotal,
+                };
+            });
+
+            await GRNItem.insertMany(itemsToCreate, { session });
+
+            grn[0].totalAmount = totalAmount;
+            await grn[0].save({ session });
+
+            // Update Inventory
+            for (const item of itemsToCreate) {
+                await InventoryService.incrementStock(
+                    user.tenantId.toString(),
+                    user.branchId.toString(),
+                    data.workAreaId,
+                    item.itemId,
+                    item.receivedQty,
+                    session
+                );
+            }
+
+            // Close PO if applicable? 
+            // Docs say: After GRN -> Status: CLOSED.
+            // Assuming full GRN closes PO. For simplicity we close it.
+            if (data.poId) {
+                await PurchaseOrder.findByIdAndUpdate(data.poId, { status: PurchaseOrderStatus.CLOSED }, { session });
+            }
+
+            await session.commitTransaction();
+            return grn[0];
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
+        }
+    }
+}
