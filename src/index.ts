@@ -1,7 +1,6 @@
 import app from './app';
 import { Config } from './config';
 import { connectDB, disconnectDB } from './config/database';
-import { redis } from './config/redis';
 
 const startServer = async () => {
   await connectDB();
@@ -17,7 +16,6 @@ const startServer = async () => {
     console.log('🛑 Shutting down...');
     server.stop();
     await disconnectDB();
-    await redis.quit();
     process.exit(0);
   };
 

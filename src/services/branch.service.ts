@@ -24,12 +24,30 @@ export class BranchService {
             performedBy: user.userId,
             details: { branchName: branch.branchName },
             tenantId: user.tenantId,
-            branchId: branch._id.toString() // Self-reference? Or null? Branch creation is Global. 
-            // Actually, SA has no branchId usually. `user.branchId` is null.
-            // But the log should probably not have a branchId if it's a global action? 
-            // The model says `branchId` in AuditLog is optional? checking...
-            // It is `type: Schema.Types.ObjectId, ref: 'Branch', required: false` (implied).
+            branchId: branch._id.toString()
         });
+
+        return branch;
+    }
+
+    static async update(id: string, data: Partial<IBranch>, user: any): Promise<IBranch | null> {
+        const branch = await Branch.findOneAndUpdate(
+            { _id: id, tenantId: user.tenantId },
+            { $set: data },
+            { new: true, runValidators: true }
+        );
+
+        if (branch) {
+            await AuditLogService.log({
+                action: 'BRANCH_UPDATE',
+                entity: 'Branch',
+                entityId: branch._id.toString(),
+                performedBy: user.userId,
+                details: data,
+                tenantId: user.tenantId,
+                branchId: branch._id.toString()
+            });
+        }
 
         return branch;
     }

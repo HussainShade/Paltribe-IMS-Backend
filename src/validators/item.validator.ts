@@ -3,7 +3,7 @@ import { ItemStatus } from '../models';
 
 export const createItemSchema = z.object({
     categoryId: z.string().min(1, 'Category ID is required'),
-    subCategoryId: z.string().min(1, 'SubCategory ID is required'),
+    // subCategoryId: z.string().min(1, 'SubCategory ID is required'),
     itemCode: z.string().min(1, 'Item Code is required'),
     itemName: z.string().min(1, 'Item Name is required'),
     hsnCode: z.string().optional().nullable(),
@@ -15,7 +15,7 @@ export const createItemSchema = z.object({
 
 export const updateItemSchema = z.object({
     categoryId: z.string().optional(),
-    subCategoryId: z.string().optional(),
+    // subCategoryId: z.string().optional(),
     itemCode: z.string().optional(),
     itemName: z.string().optional(),
     hsnCode: z.string().optional().nullable(),

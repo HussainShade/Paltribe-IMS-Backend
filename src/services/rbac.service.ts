@@ -7,7 +7,11 @@ export class RbacService {
         return rolePermissions.map((rp) => (rp.permissionId as any).permissionCode);
     }
 
-    static async hasPermission(roleId: mongoose.Types.ObjectId, permissionCode: string): Promise<boolean> {
+    static async hasPermission(role: mongoose.Types.ObjectId | any, permissionCode: string): Promise<boolean> {
+        if (!role) return false;
+
+        // Handle if role is populated object or just ID
+        const roleId = role._id || role;
         const permissions = await this.getPermissionsByRole(roleId);
         return permissions.includes(permissionCode);
     }

@@ -53,4 +53,17 @@ export class BranchController {
         const branch = await BranchService.create(body, user);
         return c.json({ status: 'success', data: branch }, 201);
     }
+
+    static async update(c: Context) {
+        const user = c.get('user');
+        const id = c.req.param('id');
+        const body = await c.req.json();
+        const branch = await BranchService.update(id, body, user);
+
+        if (!branch) {
+            return c.json({ status: 'error', message: 'Branch not found' }, 404);
+        }
+
+        return c.json({ status: 'success', data: branch });
+    }
 }

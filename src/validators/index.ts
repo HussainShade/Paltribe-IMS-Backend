@@ -5,3 +5,5 @@ export * from './indent.validator';
 export * from './user.validator';
 export * from './vendor.validator';
 export * from './item.validator';
+export * from './category.validator';
+export * from './branch.validator';

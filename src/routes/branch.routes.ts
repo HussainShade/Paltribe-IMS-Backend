@@ -1,8 +1,12 @@
 import { Hono } from 'hono';
 import { BranchController } from '../controllers';
-import { requirePermission } from '../middlewares'; // Check index export
+import { requirePermission, authMiddleware } from '../middlewares';
+import { zValidator } from '@hono/zod-validator';
+import { updateBranchSchema } from '../validators';
 
 const branchRoutes = new Hono();
+
+branchRoutes.use('*', authMiddleware);
 
 branchRoutes.get(
     '/',
@@ -20,6 +24,13 @@ branchRoutes.post(
     '/',
     requirePermission('BRANCH.CREATE'),
     BranchController.create
+);
+
+branchRoutes.patch(
+    '/:id',
+    requirePermission('BRANCH.UPDATE'),
+    zValidator('json', updateBranchSchema),
+    BranchController.update
 );
 
 export default branchRoutes;

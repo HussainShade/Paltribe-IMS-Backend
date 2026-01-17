@@ -23,13 +23,55 @@ export class ItemController {
         const { page = '1', limit = '10', search, categoryId } = c.req.query();
 
         const query: any = { tenantId: user.tenantId };
+
+        // Determine Branch Context
+        let branchId: any = user.branchId;
+        if (user.roleCode === 'SA' && !branchId) {
+            branchId = c.req.header('x-branch-id');
+        }
+
+        // Filter by Branch (via Categories)
+        if (branchId) {
+            // Find all categories for this branch
+            const { Category } = await import('../models');
+            const categories = await Category.find({ tenantId: user.tenantId, branchId }).select('_id');
+            const categoryIds = categories.map(cat => cat._id);
+
+            // If specific category requested, ensure it belongs to this branch
+            if (categoryId) {
+                if (!categoryIds.some(id => id.toString() === categoryId)) {
+                    // The requested category is not in this branch -> return empty
+                    return c.json({
+                        status: 'success',
+                        data: [],
+                        meta: { total: 0, page: parseInt(page), limit: parseInt(limit), totalPages: 0 }
+                    });
+                }
+                query.categoryId = categoryId;
+            } else {
+                // Filter items by these categories
+                if (categoryIds.length > 0) {
+                    query.categoryId = { $in: categoryIds };
+                } else {
+                    // No categories in branch -> No items
+                    return c.json({
+                        status: 'success',
+                        data: [],
+                        meta: { total: 0, page: parseInt(page), limit: parseInt(limit), totalPages: 0 }
+                    });
+                }
+            }
+        } else {
+            // No Branch Context (SA Global View): Allow filtering by specific category if provided
+            if (categoryId) query.categoryId = categoryId;
+        }
+
         if (search) {
             query.$or = [
                 { itemName: { $regex: search, $options: 'i' } },
                 { itemCode: { $regex: search, $options: 'i' } },
             ];
         }
-        if (categoryId) query.categoryId = categoryId;
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -37,8 +79,8 @@ export class ItemController {
             Item.find(query)
                 .skip(skip)
                 .limit(parseInt(limit))
-                .sort({ itemName: 1 }),
-            // .populate('categoryId', 'name') // Assuming Category model exists? Just IDs for now as per model definition
+                .sort({ itemName: 1 })
+                .populate('categoryId', 'name'),
             Item.countDocuments(query),
         ]);
 
@@ -58,7 +100,7 @@ export class ItemController {
         const user = c.get('user');
         const id = c.req.param('id');
 
-        const item = await Item.findOne({ _id: id, tenantId: user.tenantId });
+        const item = await Item.findOne({ _id: id, tenantId: user.tenantId }).populate('categoryId', 'name');
 
         if (!item) {
             return c.json({ status: 'error', message: 'Item not found' }, 404);

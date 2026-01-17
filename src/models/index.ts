@@ -20,3 +20,4 @@ export * from './indent.model';
 export * from './indent-item.model';
 export * from './issue.model';
 export * from './audit-log.model';
+export * from './category.model';

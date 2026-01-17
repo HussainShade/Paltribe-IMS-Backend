@@ -43,6 +43,6 @@ BranchSchema.set('toJSON', {
 });
 
 BranchSchema.index({ tenantId: 1, status: 1 });
-BranchSchema.index({ tenantId: 1, branchName: 1 });
+BranchSchema.index({ tenantId: 1, branchName: 1 }, { unique: true });
 
 export const Branch: Model<IBranch> = mongoose.model<IBranch>('Branch', BranchSchema);

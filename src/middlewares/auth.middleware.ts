@@ -17,6 +17,7 @@ export const authMiddleware = async (c: Context, next: Next) => {
 
         // Optimistic check: we rely on token, but could fetch user to be sure status is still active.
         // For high security, we fetch user.
+        // We populate roleId to get roleCode for easier access
         const user = (await User.findById(decoded.userId).populate('roleId').lean()) as any;
 
         if (!user || user.status !== UserStatus.ACTIVE) {

@@ -7,3 +7,4 @@ export * from './vendor.controller';
 export * from './audit-log.controller';
 export * from './branch.controller';
 export * from './item.controller';
+export * from './category.controller';

@@ -605,15 +605,34 @@ totalAmount = (receivedQty * unitCost) + taxAmount
 
 ## Inventory & Store Module Models
 
-### 16. Item Model (`item.model.ts`)
+### 16. Category Model (`category.model.ts`)
+
+**Purpose**: Item categories (e.g., "Vegetables", "Dairy").
+
+**Fields**:
+- `categoryId` (virtual): ObjectId - Primary key
+- `tenantId`: ObjectId (ref: Tenant) - Required, indexed
+- `branchId`: ObjectId (ref: Branch) - Required, indexed
+- `name`: string - Category name
+- `status`: CategoryStatus enum (ACTIVE | INACTIVE)
+- `createdAt`: Date (auto)
+- `updatedAt`: Date (auto)
+
+**Indexes**:
+- `tenantId, branchId, name` (compound, unique)
+
+**Collection**: `categories`
+
+---
+
+### 17. Item Model (`item.model.ts`)
 
 **Purpose**: Item master data - core inventory items.
 
 **Fields**:
 - `itemId` (virtual): ObjectId - Primary key
 - `tenantId`: ObjectId (ref: Tenant) - Required, indexed
-- `categoryId`: ObjectId - Required, indexed (no ref - category model not defined)
-- `subCategoryId`: ObjectId - Required, indexed (no ref - subcategory model not defined)
+- `categoryId`: ObjectId (ref: Category) - Required, indexed
 - `itemCode`: string - Unique item code (uppercase, indexed)
 - `itemName`: string - Item name
 - `hsnCode`: string | null - HSN code (optional, uppercase)
@@ -628,20 +647,17 @@ totalAmount = (receivedQty * unitCost) + taxAmount
 - `tenantId, itemCode` (compound, unique)
 - `tenantId, status` (compound)
 - `tenantId, categoryId` (compound)
-- `tenantId, subCategoryId` (compound)
 - `tenantId, itemName` (compound)
 
 **Collection**: `items`
 
 **Relationships**:
-- Belongs to: `Tenant`
+- Belongs to: `Tenant`, `Category`
 - Referenced by: `PurchaseOrderItem`, `SpecialOrderItem`, `GRNItem`, `IndentItem`, `InventoryStock`, `ItemPackage`
-
-**Note**: `categoryId` and `subCategoryId` are ObjectIds but don't have refs. Category models can be added later if needed.
 
 ---
 
-### 17. ItemPackage Model (`item-package.model.ts`)
+### 18. ItemPackage Model (`item-package.model.ts`)
 
 **Purpose**: Item packaging information (brand, quantity per package, etc.).
 
@@ -669,7 +685,7 @@ totalAmount = (receivedQty * unitCost) + taxAmount
 
 ---
 
-### 18. InventoryStock Model (`inventory-stock.model.ts`)
+### 19. InventoryStock Model (`inventory-stock.model.ts`)
 
 **Purpose**: Stock levels by item, branch, and work area.
 
@@ -702,7 +718,7 @@ totalAmount = (receivedQty * unitCost) + taxAmount
 
 ---
 
-### 19. WorkArea Model (`work-area.model.ts`)
+### 20. WorkArea Model (`work-area.model.ts`)
 
 **Purpose**: Work areas within branches (e.g., Store, Main Kitchen, etc.).
 
@@ -729,7 +745,7 @@ totalAmount = (receivedQty * unitCost) + taxAmount
 
 ## Indent Module Models
 
-### 20. Indent Model (`indent.model.ts`)
+### 21. Indent Model (`indent.model.ts`)
 
 **Purpose**: Indent requests from work areas.
 
@@ -763,7 +779,7 @@ totalAmount = (receivedQty * unitCost) + taxAmount
 
 ---
 
-### 21. IndentItem Model (`indent-item.model.ts`)
+### 22. IndentItem Model (`indent-item.model.ts`)
 
 **Purpose**: Line items for indents.
 
@@ -794,7 +810,7 @@ totalAmount = (receivedQty * unitCost) + taxAmount
 
 ---
 
-### 22. Issue Model (`issue.model.ts`)
+### 23. Issue Model (`issue.model.ts`)
 
 **Purpose**: Records issuance of items from inventory based on indents.
 
@@ -803,692 +819,25 @@ totalAmount = (receivedQty * unitCost) + taxAmount
 - `tenantId`: ObjectId (ref: Tenant) - Required, indexed
 - `branchId`: ObjectId (ref: Branch) - Required, indexed
 - `indentId`: ObjectId (ref: Indent) - Required, indexed
-- `issuedBy`: ObjectId (ref: User) - Required, indexed (SM role user)
-- `issueDate`: Date - Issue date (default: now, indexed)
+- `itemId`: ObjectId (ref: Item) - Required, indexed
+- `issuedQty`: number - Quantity issued (min: 0.01)
+- `issuedBy`: ObjectId (ref: User) - Required, indexed
 - `createdAt`: Date (auto)
 - `updatedAt`: Date (auto)
 
 **Indexes**:
 - `tenantId, branchId` (compound)
 - `tenantId, indentId` (compound)
-- `tenantId, issueDate` (compound, descending)
-- `tenantId, issuedBy` (compound)
+- `tenantId, itemId` (compound)
+- `tenantId, createdAt` (compound, descending)
 
 **Collection**: `issues`
 
 **Relationships**:
-- Belongs to: `Tenant`, `Branch`, `Indent`, `User`
+- Belongs to: `Tenant`, `Branch`, `Indent`, `Item`, `User`
 
 **Workflow**:
-1. Created by SM user from APPROVED indent
-2. Updates `IndentItem.issuedQty`
-3. Decrements `InventoryStock.quantityInStock`
-4. Updates `Indent.status` to ISSUED
-
----
-
-## Relationships & Data Flow
-
-### Entity Relationship Diagram (Conceptual)
-
-```
-Tenant (1) ──< (N) Branch
-Tenant (1) ──< (N) User
-Tenant (1) ──< (N) Vendor
-Tenant (1) ──< (N) Item
-Tenant (1) ──< (N) WorkArea
-
-Branch (1) ──< (N) User
-Branch (1) ──< (N) WorkArea
-Branch (1) ──< (N) PurchaseOrder
-Branch (1) ──< (N) SpecialOrder
-Branch (1) ──< (N) GRN
-Branch (1) ──< (N) Indent
-Branch (1) ──< (N) Issue
-Branch (1) ──< (N) InventoryStock
-
-Role (1) ──< (N) User
-Role (1) ──< (N) RolePermission
-Permission (1) ──< (N) RolePermission
-
-Vendor (1) ──< (N) PurchaseOrder
-Vendor (1) ──< (N) SpecialOrder
-
-PurchaseOrder (1) ──< (N) PurchaseOrderItem
-PurchaseOrder (1) ──< (0..1) GRN
-
-SpecialOrder (1) ──< (N) SpecialOrderItem
-SpecialOrder (1) ──< (0..1) GRN
-
-GRN (1) ──< (N) GRNItem
-GRN (1) ──< (N) RTV
-
-Item (1) ──< (N) PurchaseOrderItem
-Item (1) ──< (N) SpecialOrderItem
-Item (1) ──< (N) GRNItem
-Item (1) ──< (N) IndentItem
-Item (1) ──< (N) InventoryStock
-Item (1) ──< (N) ItemPackage
-Item (1) ──< (N) RTV
-
-WorkArea (1) ──< (N) GRN
-WorkArea (1) ──< (N) Indent
-WorkArea (1) ──< (N) InventoryStock
-
-Indent (1) ──< (N) IndentItem
-Indent (1) ──< (N) Issue
-
-User (1) ──< (N) PurchaseOrder (createdBy)
-User (1) ──< (N) PurchaseOrder (approvedBy)
-User (1) ──< (N) GRN (createdBy)
-User (1) ──< (N) RTV (processedBy)
-User (1) ──< (N) Indent (createdBy)
-User (1) ──< (N) Issue (issuedBy)
-```
-
-### Business Flow Diagrams
-
-#### 1. Purchase Order Flow
-```
-PE creates PO (OPEN)
-    ↓
-BM approves PO (APPROVED)
-    ↓
-GRN created from PO
-    ↓
-GRN items received
-    ↓
-Inventory incremented
-    ↓
-PO status → CLOSED
-```
-
-#### 2. Indent Flow
-```
-IR creates Indent (OPEN)
-    ↓
-BM approves Indent (APPROVED)
-    ↓
-SM creates Issue from Indent
-    ↓
-Inventory decremented
-    ↓
-Indent status → ISSUED
-```
-
-#### 3. RTV Flow
-```
-GRN created
-    ↓
-Items received
-    ↓
-RTV created (if items need return)
-    ↓
-Inventory decremented
-```
-
----
-
-## Indexes & Performance
-
-### Index Strategy
-
-All models follow these indexing principles:
-
-1. **Multi-tenancy First**: All indexes start with `tenantId` for tenant isolation
-2. **Compound Indexes**: Common query patterns use compound indexes
-3. **Unique Constraints**: Where business logic requires uniqueness
-4. **Descending Indexes**: For date-based queries (newest first)
-
-### Key Index Patterns
-
-```typescript
-// Tenant isolation + status filtering
-{ tenantId: 1, status: 1 }
-
-// Tenant isolation + branch filtering
-{ tenantId: 1, branchId: 1 }
-
-// Tenant isolation + date sorting (descending)
-{ tenantId: 1, poDate: -1 }
-
-// Unique constraints
-{ tenantId: 1, email: 1 } // User email uniqueness per tenant
-{ tenantId: 1, itemCode: 1 } // Item code uniqueness per tenant
-{ tenantId: 1, itemId: 1, branchId: 1, workAreaId: 1 } // Stock uniqueness
-```
-
-### Query Optimization Tips
-
-1. **Always filter by tenantId first**:
-   ```typescript
-   await PurchaseOrder.find({ tenantId, branchId, status: 'APPROVED' });
-   ```
-
-2. **Use lean() for read-only queries**:
-   ```typescript
-   await PurchaseOrder.find({ tenantId }).lean();
-   ```
-
-3. **Use select() to limit fields**:
-   ```typescript
-   await User.find({ tenantId }).select('name email roleId');
-   ```
-
-4. **Use populate() sparingly**:
-   ```typescript
-   await PurchaseOrder.find({ tenantId })
-     .populate('vendorId', 'vendorName')
-     .populate('createdBy', 'name email');
-   ```
-
----
-
-## Usage Examples
-
-### 1. Creating a Tenant and Initial Setup
-
-```typescript
-import mongoose from 'mongoose';
-import {
-  Tenant,
-  Branch,
-  Role,
-  Permission,
-  RolePermission,
-  User,
-} from './models';
-
-// Connect to MongoDB
-await mongoose.connect(process.env.MONGODB_URI!);
-
-// 1. Create tenant
-const tenant = await Tenant.create({
-  tenantName: 'Acme Corporation',
-  status: 'ACTIVE',
-});
-
-// 2. Create branch
-const branch = await Branch.create({
-  tenantId: tenant._id,
-  branchName: 'Main Branch',
-  location: 'New York, NY',
-  status: 'ACTIVE',
-});
-
-// 3. Create roles
-const saRole = await Role.create({
-  roleCode: 'SA',
-  roleName: 'Super Admin',
-});
-
-const smRole = await Role.create({
-  roleCode: 'SM',
-  roleName: 'Store Manager',
-});
-
-// 4. Create permissions
-const poCreatePermission = await Permission.create({
-  permissionCode: 'PO.CREATE',
-  moduleName: 'Purchase Order',
-});
-
-const poApprovePermission = await Permission.create({
-  permissionCode: 'PO.APPROVE',
-  moduleName: 'Purchase Order',
-});
-
-// 5. Map permissions to roles
-await RolePermission.create({
-  roleId: smRole._id,
-  permissionId: poCreatePermission._id,
-});
-
-// 6. Create user
-const user = await User.create({
-  tenantId: tenant._id,
-  branchId: branch._id,
-  roleId: smRole._id,
-  name: 'John Doe',
-  email: 'john@acme.com',
-  passwordHash: await hashPassword('password123'),
-  status: 'ACTIVE',
-});
-```
-
-### 2. Purchase Order Workflow
-
-```typescript
-import {
-  Vendor,
-  PurchaseOrder,
-  PurchaseOrderItem,
-  Item,
-  GRN,
-  GRNItem,
-  InventoryStock,
-} from './models';
-
-// 1. Create vendor
-const vendor = await Vendor.create({
-  tenantId: tenantId,
-  vendorName: 'Supplier ABC',
-  gstNo: 'GST123456',
-  contactDetails: {
-    email: 'contact@supplier.com',
-    phone: '+1234567890',
-  },
-  status: 'ACTIVE',
-});
-
-// 2. Create purchase order
-const po = await PurchaseOrder.create({
-  tenantId: tenantId,
-  branchId: branchId,
-  vendorId: vendor._id,
-  createdBy: userId,
-  poDate: new Date(),
-  status: 'OPEN',
-  totalAmount: 0,
-});
-
-// 3. Add items
-const item = await Item.findOne({ tenantId, itemCode: 'ITEM001' });
-const poItem = await PurchaseOrderItem.create({
-  poId: po._id,
-  itemId: item._id,
-  quantity: 100,
-  unitCost: 50,
-  taxRate: 18,
-  totalPrice: 5900, // (100 * 50) * 1.18
-});
-
-// Update PO total
-po.totalAmount += poItem.totalPrice;
-await po.save();
-
-// 4. Approve PO (by Branch Manager)
-po.status = 'APPROVED';
-po.approvedBy = branchManagerId;
-await po.save();
-
-// 5. Create GRN
-const grn = await GRN.create({
-  tenantId: tenantId,
-  branchId: branchId,
-  poId: po._id,
-  soId: null,
-  vendorInvoiceNo: 'INV-2024-001',
-  goodsReceivedDate: new Date(),
-  workAreaId: workAreaId,
-  createdBy: userId,
-  totalAmount: 0,
-});
-
-// 6. Add GRN items
-const grnItem = await GRNItem.create({
-  grnId: grn._id,
-  itemId: item._id,
-  receivedQty: 100,
-  unitCost: 50,
-  taxAmount: 900,
-  totalAmount: 5900,
-});
-
-grn.totalAmount += grnItem.totalAmount;
-await grn.save();
-
-// 7. Update inventory
-const stock = await InventoryStock.findOneAndUpdate(
-  {
-    tenantId: tenantId,
-    itemId: item._id,
-    branchId: branchId,
-    workAreaId: workAreaId,
-  },
-  {
-    $inc: { quantityInStock: grnItem.receivedQty },
-  },
-  { upsert: true, new: true }
-);
-
-// 8. Close PO
-po.status = 'CLOSED';
-await po.save();
-```
-
-### 3. Indent and Issue Workflow
-
-```typescript
-import { Indent, IndentItem, Issue, InventoryStock } from './models';
-
-// 1. Create indent (by IR user)
-const indent = await Indent.create({
-  tenantId: tenantId,
-  branchId: branchId,
-  workAreaId: workAreaId,
-  createdBy: irUserId,
-  indentDate: new Date(),
-  status: 'OPEN',
-});
-
-// 2. Add indent items
-const indentItem = await IndentItem.create({
-  indentId: indent._id,
-  itemId: itemId,
-  requestedQty: 50,
-  issuedQty: 0,
-  pendingQty: 50,
-});
-
-// 3. Approve indent (by Branch Manager)
-indent.status = 'APPROVED';
-await indent.save();
-
-// 4. Create issue (by SM user)
-const issue = await Issue.create({
-  tenantId: tenantId,
-  branchId: branchId,
-  indentId: indent._id,
-  issuedBy: smUserId,
-  issueDate: new Date(),
-});
-
-// 5. Update indent item
-indentItem.issuedQty = 50;
-indentItem.pendingQty = 0;
-await indentItem.save();
-
-// 6. Decrement inventory
-await InventoryStock.findOneAndUpdate(
-  {
-    tenantId: tenantId,
-    itemId: itemId,
-    branchId: branchId,
-    workAreaId: workAreaId,
-  },
-  {
-    $inc: { quantityInStock: -50 },
-  }
-);
-
-// 7. Update indent status
-indent.status = 'ISSUED';
-await indent.save();
-```
-
-### 4. RTV (Return to Vendor)
-
-```typescript
-import { RTV, InventoryStock } from './models';
-
-// Create RTV
-const rtv = await RTV.create({
-  tenantId: tenantId,
-  branchId: branchId,
-  grnId: grnId,
-  itemId: itemId,
-  returnedQty: 10,
-  processedBy: userId,
-});
-
-// Decrement inventory
-await InventoryStock.findOneAndUpdate(
-  {
-    tenantId: tenantId,
-    itemId: itemId,
-    branchId: branchId,
-    workAreaId: workAreaId,
-  },
-  {
-    $inc: { quantityInStock: -rtv.returnedQty },
-  }
-);
-```
-
-### 5. Transaction Example (Multi-document Operations)
-
-```typescript
-import mongoose from 'mongoose';
-
-const session = await mongoose.startSession();
-session.startTransaction();
-
-try {
-  // Create PO
-  const po = await PurchaseOrder.create([{
-    tenantId: tenantId,
-    branchId: branchId,
-    vendorId: vendorId,
-    createdBy: userId,
-    status: 'OPEN',
-    totalAmount: 0,
-  }], { session });
-
-  // Create PO items
-  const items = await PurchaseOrderItem.insertMany([
-    {
-      poId: po[0]._id,
-      itemId: item1Id,
-      quantity: 10,
-      unitCost: 100,
-      taxRate: 18,
-      totalPrice: 1180,
-    },
-    {
-      poId: po[0]._id,
-      itemId: item2Id,
-      quantity: 20,
-      unitCost: 50,
-      taxRate: 18,
-      totalPrice: 1180,
-    },
-  ], { session });
-
-  // Update PO total
-  const total = items.reduce((sum, item) => sum + item.totalPrice, 0);
-  await PurchaseOrder.findByIdAndUpdate(
-    po[0]._id,
-    { $set: { totalAmount: total } },
-    { session }
-  );
-
-  await session.commitTransaction();
-} catch (error) {
-  await session.abortTransaction();
-  throw error;
-} finally {
-  session.endSession();
-}
-```
-
----
-
-## Best Practices
-
-### 1. Multi-tenancy Isolation
-
-**Always filter by tenantId first**:
-```typescript
-// ✅ Good
-const items = await Item.find({ tenantId, status: 'ACTIVE' });
-
-// ❌ Bad - security risk
-const items = await Item.find({ status: 'ACTIVE' });
-```
-
-### 2. Status-based Soft Deletes
-
-**Never use hard deletes**:
-```typescript
-// ✅ Good
-await User.findByIdAndUpdate(userId, { status: 'INACTIVE' });
-
-// ❌ Bad
-await User.findByIdAndDelete(userId);
-```
-
-### 3. Virtual IDs Usage
-
-**Use virtual IDs in responses**:
-```typescript
-// Virtual IDs are automatically included in toJSON()
-const user = await User.findById(userId);
-console.log(user.toJSON()); // { userId: ..., name: ..., email: ... }
-```
-
-### 4. Population Strategy
-
-**Populate only what you need**:
-```typescript
-// ✅ Good - selective population
-const po = await PurchaseOrder.findById(poId)
-  .populate('vendorId', 'vendorName')
-  .populate('createdBy', 'name email');
-
-// ❌ Bad - over-population
-const po = await PurchaseOrder.findById(poId)
-  .populate('vendorId')
-  .populate('createdBy')
-  .populate('branchId')
-  .populate('tenantId');
-```
-
-### 5. Index-aware Queries
-
-**Structure queries to use indexes**:
-```typescript
-// ✅ Good - uses compound index { tenantId: 1, branchId: 1, status: 1 }
-const pos = await PurchaseOrder.find({
-  tenantId,
-  branchId,
-  status: 'APPROVED',
-});
-
-// ❌ Bad - can't use index efficiently
-const pos = await PurchaseOrder.find({
-  status: 'APPROVED',
-  branchId,
-  tenantId,
-});
-```
-
-### 6. Validation at Model Level
-
-**Use Mongoose validators**:
-```typescript
-// GRN model already validates poId/soId mutual exclusivity
-const grn = await GRN.create({
-  tenantId,
-  poId: poId,
-  soId: soId, // ❌ Will throw error
-});
-```
-
-### 7. Type Safety
-
-**Always use TypeScript interfaces**:
-```typescript
-import { IPurchaseOrder } from './models';
-
-async function createPO(data: Partial<IPurchaseOrder>): Promise<IPurchaseOrder> {
-  return await PurchaseOrder.create(data);
-}
-```
-
-### 8. Error Handling
-
-**Handle validation errors**:
-```typescript
-try {
-  const po = await PurchaseOrder.create(data);
-} catch (error) {
-  if (error instanceof mongoose.Error.ValidationError) {
-    // Handle validation errors
-  }
-}
-```
-
----
-
-## Dependencies
-
-### Package.json Updates
-
-```json
-{
-  "dependencies": {
-    "mongoose": "^8.0.0",
-    "zod": "^3.22.4"
-  },
-  "devDependencies": {
-    "@types/node": "^20.0.0"
-  }
-}
-```
-
-### Installation
-
-```bash
-bun install
-# or
-npm install
-```
-
----
-
-## File Structure
-
-```
-src/models/
-├── tenant.model.ts
-├── branch.model.ts
-├── user.model.ts
-├── role.model.ts
-├── permission.model.ts
-├── role-permission.model.ts
-├── vendor.model.ts
-├── purchase-order.model.ts
-├── purchase-order-item.model.ts
-├── special-order.model.ts
-├── special-order-item.model.ts
-├── grn.model.ts
-├── grn-item.model.ts
-├── rtv.model.ts
-├── item.model.ts
-├── item-package.model.ts
-├── inventory-stock.model.ts
-├── work-area.model.ts
-├── indent.model.ts
-├── indent-item.model.ts
-├── issue.model.ts
-└── index.ts
-```
-
----
-
-## Summary
-
-This documentation covers all 21 Mongoose models for the Inventory Management System:
-
-- ✅ **6 AUTH & RBAC models** - Multi-tenancy and access control
-- ✅ **3 Purchase module models** - Purchase orders and vendors
-- ✅ **2 Special Order models** - Special order handling
-- ✅ **3 GRN & RTV models** - Goods receipt and returns
-- ✅ **4 Inventory & Store models** - Items, stock, and work areas
-- ✅ **3 Indent module models** - Indent requests and issues
-
-All models are:
-- Production-ready
-- TypeScript strict mode compliant
-- Multi-tenant aware
-- Properly indexed
-- Transaction-safe
-- Soft-delete enabled
-- Fully documented
-
----
-
-**Last Updated**: 2024
-**Version**: 1.0.0
-**Framework**: Hono.js + Mongoose + TypeScript
+1. Created via `Indent.issue()`
+2. Inventory decremented
+3. IndentItem `issuedQty` updated
+4. Indent status updated to ISSUED if fully served

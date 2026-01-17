@@ -1,6 +1,6 @@
 # IMP Backend - API Documentation
 
-Base URL: `http://localhost:3000/api/v1`
+**Base URL**: `http://localhost:3000/api/v1`
 
 This documentation details all available API endpoints, their methods, request bodies, and success responses.
 
@@ -9,14 +9,14 @@ This documentation details all available API endpoints, their methods, request b
 ## 1. System Health
 
 ### Check Health status
-**GET** `/health` (No `/api/v1` prefix for this one usually, but let's assume route structure - actually `app.get('/health')` is root)
+**GET** `/health` (Root level, not under `/api/v1`)
 **URL**: `http://localhost:3000/health`
 
 **Response**:
 ```json
 {
     "status": "ok",
-    "uptime": 6849.4452627
+    "uptime": 123.45
 }
 ```
 
@@ -24,7 +24,7 @@ This documentation details all available API endpoints, their methods, request b
 
 ## 2. Authentication
 
-### SuperAdmin Login
+### Login
 **POST** `/auth/login`
 
 **Body**:
@@ -42,37 +42,14 @@ This documentation details all available API endpoints, their methods, request b
     "status": "success",
     "data": {
         "user": {
-            "tenantId": "<TenantID>",
+            "tenantId": "...",
             "branchId": null,
-            "roleId": "<RoleID>",
+            "roleId": "...",
             "name": "Paltribe Admin",
             "email": "admin@paltribe.com",
-            "status": "ACTIVE",
-            "createdAt": "2026-01-16T11:34:27.382Z",
-            "updatedAt": "2026-01-16T11:34:27.382Z",
-            "userId": "<UserID>",
-            "id": "<UserID>"
+            "status": "ACTIVE"
         },
-        "permissions": [
-            "USER.CREATE",
-            "USER.VIEW",
-            "USER.UPDATE",
-            "USER.DELETE",
-            "VENDOR.CREATE",
-            "VENDOR.VIEW",
-            "VENDOR.UPDATE",
-            "VENDOR.DELETE",
-            "ITEM.CREATE",
-            "ITEM.VIEW",
-            "ITEM.UPDATE",
-            "ITEM.DELETE",
-            "PO.CREATE",
-            "PO.APPROVE",
-            "GRN.CREATE",
-            "INDENT.CREATE",
-            "INDENT.APPROVE",
-            "INDENT.ISSUE"
-        ],
+        "permissions": [ "USER.CREATE", "..." ],
         "accessToken": "<accessToken>",
         "refreshToken": "<refreshToken>"
     }
@@ -106,6 +83,7 @@ This documentation details all available API endpoints, their methods, request b
 
 ### Create User
 **POST** `/users`
+*Permission*: `USER.CREATE`
 
 **Body**:
 ```json
@@ -113,67 +91,34 @@ This documentation details all available API endpoints, their methods, request b
     "name": "Branch Manager",
     "email": "manager@paltribe.com",
     "password": "password123",
-    "roleId": "<RoleID>"
-}
-```
-
-**Response**:
-```json
-{
-    "status": "success",
-    "data": {
-        "tenantId": "<TenantID>",
-        "branchId": null,
-        "roleId": "<RoleID>",
-        "name": "Branch Manager",
-        "email": "manager@paltribe.com",
-        "status": "ACTIVE",
-        "userId": "<UserID>",
-        "_id": "<UserID>",
-        "createdAt": "...",
-        "updatedAt": "...",
-        "__v": 0
-    }
+    "roleId": "<RoleID>",
+    "branchId": "<BranchID>"
 }
 ```
 
 ### List Users
-*Requires Header: `Authorization: Bearer <accessToken>`*
 **GET** `/users`
-**Query Params**: `?page=1&limit=10`
+*Permission*: `USER.VIEW`
+*Query Params*: `?page=1&limit=10`
 
-**Response**:
+### Get User
+**GET** `/users/:id`
+*Permission*: `USER.VIEW`
+
+### Update User
+**PATCH** `/users/:id`
+*Permission*: `USER.UPDATE`
+
+**Body**:
 ```json
 {
-    "status": "success",
-    "data": [
-        {
-            "_id": "<UserID>",
-            "tenantId": "<TenantID>",
-            "branchId": null,
-            "roleId": {
-                "_id": "<RoleID>",
-                "roleCode": "SA",
-                "roleName": "Super Admin"
-            },
-            "name": "Paltribe Admin",
-            "email": "admin@paltribe.com",
-            "passwordHash": "...",
-            "status": "ACTIVE",
-            "createdAt": "...",
-            "updatedAt": "...",
-            "__v": 0,
-            "userId": "<UserID>"
-        }
-    ],
-    "meta": {
-        "total": 1,
-        "page": 1,
-        "limit": 10,
-        "totalPages": 1
-    }
+    "name": "New Name"
 }
 ```
+
+### Delete User
+**DELETE** `/users/:id`
+*Permission*: `USER.DELETE`
 
 ---
 
@@ -182,6 +127,7 @@ This documentation details all available API endpoints, their methods, request b
 
 ### Create Vendor
 **POST** `/vendors`
+*Permission*: `VENDOR.CREATE`
 
 **Body**:
 ```json
@@ -196,80 +142,31 @@ This documentation details all available API endpoints, their methods, request b
 }
 ```
 
-**Response**:
-```json
-{
-    "status": "success",
-    "data": {
-        "tenantId": "<TenantID>",
-        "vendorName": "Acme Supplies",
-        "gstNo": "GSTIN12345",
-        "contactDetails": {
-            "phone": "9876543210",
-            "email": "contact@acme.com",
-            "address": "123 Supply St"
-        },
-        "status": "ACTIVE",
-        "vendorId": "<VendorID>",
-        "_id": "<VendorID>",
-        "createdAt": "...",
-        "updatedAt": "...",
-        "__v": 0
-    }
-}
-```
+### List Vendors
+**GET** `/vendors`
+*Permission*: `VENDOR.VIEW`
+*Query Params*: `?page=1&limit=10&search=...`
+
+### Get Vendor
+**GET** `/vendors/:id`
+*Permission*: `VENDOR.VIEW`
+
+### Update Vendor
+**PATCH** `/vendors/:id`
+*Permission*: `VENDOR.UPDATE`
+
+### Delete Vendor
+**DELETE** `/vendors/:id`
+*Permission*: `VENDOR.DELETE`
 
 ---
 
-## 5. Item Management
-*Requires Header: `Authorization: Bearer <accessToken>`*
-
-### Create Item
-**POST** `/items`
-
-**Body**:
-```json
-{
-    "itemCode": "VEG-001",
-    "itemName": "Fresh Tomato",
-    "categoryId": "<CategoryID>",
-    "subCategoryId": "<SubCategoryID>",
-    "inventoryUom": "KG",
-    "unitCost": 40,
-    "taxRate": 5
-}
-```
-
-**Response**:
-```json
-{
-    "status": "success",
-    "data": {
-        "tenantId": "<TenantID>",
-        "itemCode": "VEG-001",
-        "itemName": "Fresh Tomato",
-        "categoryId": "<CategoryID>",
-        "subCategoryId": "<SubCategoryID>",
-        "inventoryUom": "KG",
-        "unitCost": 40,
-        "taxRate": 5,
-        "status": "ACTIVE",
-        "_id": "<ItemID>",
-        "itemId": "<ItemID>",
-        "createdAt": "...",
-        "updatedAt": "..."
-    }
-}
-```
-
----
-
-## 6. Branch Management
+## 5. Branch Management
 *Requires Header: `Authorization: Bearer <accessToken>`*
 
 ### Create Branch
 **POST** `/branches`
-*Required Permission*: `BRANCH.CREATE`
+*Permission*: `BRANCH.CREATE`
 
 **Body**:
 ```json
@@ -279,51 +176,89 @@ This documentation details all available API endpoints, their methods, request b
 }
 ```
 
-**Response**:
-```json
-{
-    "status": "success",
-    "data": {
-        "tenantId": "<TenantID>",
-        "branchName": "Main Branch",
-        "location": "Downtown",
-        "status": "ACTIVE",
-        "branchId": "<BranchID>",
-        "_id": "<BranchID>",
-        "createdAt": "...",
-        "updatedAt": "..."
-    }
-}
-```
-
 ### List Branches
 **GET** `/branches`
-*Required Permission*: `BRANCH.VIEW`
+*Permission*: `BRANCH.VIEW`
 
-**Response**:
+### Update Branch
+**PATCH** `/branches/:id`
+*Permission*: `BRANCH.UPDATE`
+
+**Body**:
 ```json
 {
-    "status": "success",
-    "data": [
-        {
-            "_id": "<BranchID>",
-            "tenantId": "<TenantID>",
-            "branchName": "Main Branch",
-            "location": "Downtown",
-            "status": "ACTIVE",
-            "branchId": "<BranchID>"
-        }
-    ]
+    "branchName": "New Branch Name",
+    "location": "New Location"
 }
 ```
 
 ---
 
-## 7. Purchase Orders (PO)
+## 6. Category Management
+*Requires Header: `Authorization: Bearer <accessToken>`*
+
+### Create Category
+**POST** `/categories`
+*Permission*: `CATEGORY.CREATE`
+
+**Body**:
+```json
+{
+    "name": "Electronics",
+    "status": "ACTIVE"
+}
+```
+
+### List Categories
+**GET** `/categories`
+*Permission*: `CATEGORY.VIEW`
+
+---
+
+## 7. Item Management
+*Requires Header: `Authorization: Bearer <accessToken>`*
+
+### Create Item
+**POST** `/items`
+*Permission*: `ITEM.CREATE`
+
+**Body**:
+```json
+{
+    "itemCode": "VEG-001",
+    "itemName": "Fresh Tomato",
+    "categoryId": "<CategoryID>",
+    "inventoryUom": "KG",
+    "unitCost": 40,
+    "taxRate": 5
+}
+```
+
+### List Items
+**GET** `/items`
+*Permission*: `ITEM.VIEW`
+*Query Params*: `?page=1&limit=10&search=...&categoryId=...`
+
+### Get Item
+**GET** `/items/:id`
+*Permission*: `ITEM.VIEW`
+
+### Update Item
+**PATCH** `/items/:id`
+*Permission*: `ITEM.UPDATE`
+
+### Delete Item
+**DELETE** `/items/:id`
+*Permission*: `ITEM.DELETE`
+
+---
+
+## 8. Purchase Orders (PO)
 *Requires Header: `Authorization: Bearer <accessToken>`*
 
 ### Create PO
 **POST** `/purchase-orders`
+*Permission*: `PO.CREATE`
 
 **Body**:
 ```json
@@ -341,23 +276,9 @@ This documentation details all available API endpoints, their methods, request b
 }
 ```
 
-**Response**:
-```json
-{
-    "status": "success",
-    "data": {
-        "poNumber": "PO-...",
-        "vendorId": "<VendorID>",
-        "status": "DRAFT",
-        "items": [...],
-        "_id": "<POID>",
-        "createdAt": "..."
-    }
-}
-```
-
 ### Approve PO
-**PATCH** `/purchase-orders/<POID>/approve`
+**PATCH** `/purchase-orders/:id/approve`
+*Permission*: `PO.APPROVE` (Likely required by logic or role)
 
 **Body**:
 ```json
@@ -366,26 +287,27 @@ This documentation details all available API endpoints, their methods, request b
 }
 ```
 
-**Response**:
+### Update PO Item Quantity
+**PATCH** `/purchase-orders/:id/items/:itemId`
+*Permission*: `PO.UPDATE`
+
+**Body**:
 ```json
 {
-    "status": "success",
-    "data": {
-        "_id": "<POID>",
-        "status": "APPROVED",
-        "approvedBy": "<UserID>",
-        "approvedAt": "..."
-    }
+    "quantity": 150
 }
 ```
 
+> **Note**: There is currently no API endpoint to **List** Purchase Orders.
+
 ---
 
-## 8. Goods Received Note (GRN)
+## 9. Goods Received Note (GRN)
 *Requires Header: `Authorization: Bearer <accessToken>`*
 
 ### Create GRN
 **POST** `/grn`
+*Permission*: `GRN.CREATE`
 
 **Body**:
 ```json
@@ -403,79 +325,27 @@ This documentation details all available API endpoints, their methods, request b
 }
 ```
 
-**Response**:
-```json
-{
-    "status": "success",
-    "data": {
-        "grnNumber": "GRN-...",
-        "poId": "<POID>",
-        "status": "RECEIVED",
-        "_id": "<GRNID>",
-        "createdAt": "..."
-    }
-}
-```
+### List GRNs
+**GET** `/grn`
+*Permission*: `GRN.VIEW`
 
 ---
 
-## 9. Indents & Inventory
+## 10. Indents & Inventory
 *Requires Header: `Authorization: Bearer <accessToken>`*
 
-### Get Inventory
+### Get Inventory Stock
 **GET** `/inventory`
-
-**Response**:
-```json
-{
-    "status": "success",
-    "data": [
-        {
-            "_id": "<StockID>",
-            "itemId": {
-                "_id": "<ItemID>",
-                "itemName": "Fresh Tomato",
-                "itemCode": "VEG-001"
-            },
-            "quantity": 100
-        }
-    ]
-}
-```
-
-### List Indents
-**GET** `/indents`
-**Query Params**: `?page=1&limit=10&status=OPEN&startDate=...&endDate=...`
-
-**Response**:
-```json
-{
-    "status": "success",
-    "data": [
-        {
-            "_id": "<IndentID>",
-            "indentNumber": "IND-...",
-            "status": "OPEN",
-            "branchId": "<BranchID>",
-             ...
-        }
-    ],
-    "meta": {
-        "total": 10,
-        "page": 1,
-        "limit": 10,
-        "totalPages": 1
-    }
-}
-```
+*Permission*: Access restrictions apply (Branch based).
 
 ### Create Indent
 **POST** `/indents`
+*Permission*: `INDENT.CREATE`
 
 **Body**:
 ```json
 {
-    "workAreaId": "<KitchenWorkAreaID>",
+    "workAreaId": "<WorkAreaID>",
     "items": [
         {
             "itemId": "<ItemID>",
@@ -485,47 +355,36 @@ This documentation details all available API endpoints, their methods, request b
 }
 ```
 
-**Response**:
+### List Indents
+**GET** `/indents`
+*Permission*: `INDENT.VIEW`
+
+### Approve Indent
+**PATCH** `/indents/:id/approve`
+*Permission*: `INDENT.APPROVE`
+
+### Issue Indent (Move Stock)
+**POST** `/indents/issue`
+*Permission*: `INDENT.ISSUE`
+
+**Body**:
 ```json
 {
-    "status": "success",
-    "data": {
-        "indentNumber": "IND-...",
-        "status": "PENDING",
-        "_id": "<IndentID>"
-    }
+    "indentId": "<IndentID>",
+    "items": [
+        {
+            "itemId": "<ItemID>",
+            "issuedQty": 10
+        }
+    ]
 }
 ```
+
 ---
 
-## 10. Audit Logs
+## 11. Audit Logs
 *Requires Header: `Authorization: Bearer <accessToken>`*
 
 ### List Audit Logs
 **GET** `/audit-logs`
-*Required Permission*: `LOGS.VIEW`
-
-**Response**:
-```json
-{
-    "status": "success",
-    "data": [
-        {
-            "_id": "<LogID>",
-            "action": "CREATE_USER",
-            "entity": "User",
-            "entityId": "<UserID>",
-            "performedBy": "<UserID>",
-            "details": { "email": "newuser@example.com" },
-            "timestamp": "2026-01-17T...",
-            "tenantId": "<TenantID>"
-        }
-    ],
-    "meta": {
-        "total": 100,
-        "page": 1,
-        "limit": 10,
-        "totalPages": 10
-    }
-}
-```
+*Permission*: `LOGS.VIEW`

@@ -1,7 +1,7 @@
 import { IUser } from '../models';
 
 export type Variables = {
-    user: IUser;
+    user: IUser & { roleCode?: string };
     tenantId: string;
     branchId: string;
 };

@@ -9,7 +9,7 @@ export interface IItem extends Document {
   itemId: mongoose.Types.ObjectId;
   tenantId: mongoose.Types.ObjectId;
   categoryId: mongoose.Types.ObjectId;
-  subCategoryId: mongoose.Types.ObjectId;
+  // subCategoryId: mongoose.Types.ObjectId; // Removed
   itemCode: string;
   itemName: string;
   hsnCode?: string | null;
@@ -24,8 +24,8 @@ export interface IItem extends Document {
 const ItemSchema = new Schema<IItem>(
   {
     tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
-    categoryId: { type: Schema.Types.ObjectId, required: true }, // No ref defined as per docs
-    subCategoryId: { type: Schema.Types.ObjectId, required: true }, // No ref defined as per docs
+    categoryId: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
+    // subCategoryId removed
     itemCode: { type: String, required: true, uppercase: true },
     itemName: { type: String, required: true },
     hsnCode: { type: String, uppercase: true, default: null },
@@ -57,7 +57,7 @@ ItemSchema.set('toJSON', {
 ItemSchema.index({ tenantId: 1, itemCode: 1 }, { unique: true });
 ItemSchema.index({ tenantId: 1, status: 1 });
 ItemSchema.index({ tenantId: 1, categoryId: 1 });
-ItemSchema.index({ tenantId: 1, subCategoryId: 1 });
+// ItemSchema.index({ tenantId: 1, subCategoryId: 1 });
 ItemSchema.index({ tenantId: 1, itemName: 1 });
 
 export const Item: Model<IItem> = mongoose.model<IItem>('Item', ItemSchema);

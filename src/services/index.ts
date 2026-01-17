@@ -5,3 +5,4 @@ export * from './purchase-order.service';
 export * from './grn.service';
 export * from './indent.service';
 export * from './issue.service';
+export * from './category.service';

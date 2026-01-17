@@ -8,6 +8,7 @@ import userRoutes from './user.routes';
 import vendorRoutes from './vendor.routes';
 import auditLogRoutes from './audit-log.routes';
 import itemRoutes from './item.routes';
+import categoryRoutes from './category.routes';
 import branchRoutes from './branch.routes';
 import { errorHandler } from '../middlewares/error.middleware';
 
@@ -22,6 +23,7 @@ api.route('/branches', branchRoutes);
 api.route('/users', userRoutes);
 api.route('/vendors', vendorRoutes);
 api.route('/items', itemRoutes);
+api.route('/categories', categoryRoutes);
 
 api.onError(errorHandler);
 

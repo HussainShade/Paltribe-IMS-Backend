@@ -28,7 +28,17 @@ const seed = async () => {
             status: TenantStatus.ACTIVE,
         });
 
-        // 3. Create Roles
+
+        // 3. Create Branch
+        console.log('🏢 Creating Branch...');
+        const mainBranch = await import('../models').then(m => m.Branch.create({
+            tenantId: tenant._id,
+            branchName: 'Main Branch',
+            location: 'Headquarters',
+            status: 'ACTIVE' // Using string manually or import enum
+        }));
+
+        // 4. Create Roles
         console.log('👑 Creating Roles...');
         const saRole = await Role.create({
             roleCode: RoleCode.SA,
@@ -60,7 +70,11 @@ const seed = async () => {
             { code: 'ITEM.DELETE', module: 'Item' },
             // PO
             { code: 'PO.CREATE', module: 'PurchaseOrder' },
+            { code: 'PO.UPDATE', module: 'PurchaseOrder' },
             { code: 'PO.APPROVE', module: 'PurchaseOrder' },
+            // Category
+            { code: 'CATEGORY.CREATE', module: 'Category' },
+            { code: 'CATEGORY.VIEW', module: 'Category' },
             // GRN
             { code: 'GRN.CREATE', module: 'GRN' },
             // Indent
@@ -72,6 +86,7 @@ const seed = async () => {
             // Branch
             { code: 'BRANCH.CREATE', module: 'Branch' },
             { code: 'BRANCH.VIEW', module: 'Branch' },
+            { code: 'BRANCH.UPDATE', module: 'Branch' },
         ];
 
         const createdPermissions = await Permission.insertMany(
@@ -96,8 +111,9 @@ const seed = async () => {
             'USER.CREATE', 'USER.VIEW', 'USER.UPDATE', 'USER.DELETE',
             'LOGS.VIEW',
             'BRANCH.VIEW', // To see own branch details? Or selection?
+            'CATEGORY.CREATE', 'CATEGORY.VIEW',
             // Inherit PE, SM, IR permissions
-            'PO.CREATE', 'PO.APPROVE',
+            'PO.CREATE', 'PO.UPDATE', 'PO.APPROVE',
             'GRN.CREATE',
             'INDENT.CREATE', 'INDENT.APPROVE', 'INDENT.ISSUE',
             'ITEM.VIEW', 'ITEM.CREATE', 'ITEM.UPDATE', 'ITEM.DELETE', // Assuming BM manages Items
@@ -124,6 +140,17 @@ const seed = async () => {
             status: UserStatus.ACTIVE,
         });
 
+        console.log('👤 Creating Branch Manager User...');
+        const bmUser = await User.create({
+            tenantId: tenant._id,
+            branchId: mainBranch._id,
+            roleId: bmRole._id,
+            name: 'Branch Manager',
+            email: 'manager@paltribe.com',
+            passwordHash: passwordHash,
+            status: UserStatus.ACTIVE,
+        });
+
         console.log('\n✅ Database Seeded Successfully!');
         console.log('-------------------------------------------');
         console.log('🔑 Credentials & Roles:');
@@ -132,6 +159,7 @@ const seed = async () => {
         console.log(`   BM Role ID: ${bmRole._id}`);
         console.log('-------------------------------------------');
         console.log(`   Admin User: admin@paltribe.com / password123`);
+        console.log(`   Manager User: manager@paltribe.com / password123`);
         console.log('-------------------------------------------');
 
     } catch (error) {
