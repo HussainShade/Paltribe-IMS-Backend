@@ -25,13 +25,25 @@ const ItemSchema = new Schema<IItem>(
   {
     tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
     categoryId: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
-    // subCategoryId removed
+    subCategoryId: { type: Schema.Types.ObjectId, ref: 'SubCategory', default: null }, // Assuming SubCategory model exists or will exist? Or just reference to Category? App flow says "Sub category". I'll assume it's nice to have.
+    ledger: { type: String, default: null },
+    classification: { type: String, default: null },
     itemCode: { type: String, required: true, uppercase: true },
     itemName: { type: String, required: true },
     hsnCode: { type: String, uppercase: true, default: null },
     inventoryUom: { type: String, required: true },
     unitCost: { type: Number, min: 0, default: 0 },
     taxRate: { type: Number, min: 0, max: 100, default: 0 },
+    yield: { type: Number, default: 100 },
+    weight: { type: Number, default: 0 },
+    leadTime: { type: Number, default: 0 },
+    packageDetails: [{
+      name: String,
+      brand: String,
+      qty: Number,
+      price: Number,
+      parLevel: Number
+    }],
     status: { type: String, enum: Object.values(ItemStatus), default: ItemStatus.ACTIVE },
   },
   {

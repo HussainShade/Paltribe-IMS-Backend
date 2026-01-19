@@ -1,5 +1,7 @@
 import { Context } from 'hono';
 import { PurchaseOrderService } from '../services';
+import { ApiError } from '../utils/ApiError';
+import { ApiResponse } from '../utils/ApiResponse';
 
 export class PurchaseOrderController {
     static async create(c: Context) {
@@ -8,9 +10,10 @@ export class PurchaseOrderController {
 
         // Ensure SA provides context or inject it? PO creation usually requires branchId in body
         // But Service.createPO likely handles it.
+        const branchId = c.get('branchId'); // From branchMiddleware
 
-        const po = await PurchaseOrderService.createPO(data, user);
-        return c.json({ status: 'success', data: po }, 201);
+        const po = await PurchaseOrderService.createPO(data, user, branchId);
+        return c.json(new ApiResponse(201, po, 'Purchase Order created successfully'), 201);
     }
 
     static async list(c: Context) {
@@ -47,23 +50,44 @@ export class PurchaseOrderController {
             PurchaseOrder.countDocuments(query)
         ]);
 
-        return c.json({
-            status: 'success',
-            data: pos,
+        return c.json(new ApiResponse(200, {
+            pos,
             meta: {
                 total,
                 page: parseInt(page),
                 limit: parseInt(limit),
                 totalPages: Math.ceil(total / parseInt(limit)),
             }
-        });
+        }, 'Purchase Orders retrieved successfully'));
     }
 
     static async approve(c: Context) {
         const user = c.get('user');
         const poId = c.req.param('id');
         const po = await PurchaseOrderService.approvePO(poId, user);
-        return c.json({ status: 'success', data: po });
+        return c.json(new ApiResponse(200, po, 'Purchase Order approved successfully'));
+    }
+
+    static async update(c: Context) {
+        const user = c.get('user');
+        const poId = c.req.param('id');
+        const data = await c.req.json();
+        const po = await PurchaseOrderService.updatePO(poId, data, user);
+        return c.json(new ApiResponse(200, po, 'Purchase Order updated successfully'));
+    }
+
+    static async cancel(c: Context) {
+        const user = c.get('user');
+        const poId = c.req.param('id');
+        const po = await PurchaseOrderService.cancelPO(poId, user);
+        return c.json(new ApiResponse(200, po, 'Purchase Order cancelled successfully'));
+    }
+
+    static async delete(c: Context) {
+        const user = c.get('user');
+        const poId = c.req.param('id');
+        const result = await PurchaseOrderService.deletePO(poId, user);
+        return c.json(new ApiResponse(200, result, 'Purchase Order deleted successfully'));
     }
 
     static async patchItemQuantity(c: Context) {
@@ -73,7 +97,7 @@ export class PurchaseOrderController {
         const { quantity } = await c.req.json();
 
         if (quantity === undefined || quantity <= 0) {
-            return c.json({ status: 'error', message: 'Valid quantity required' }, 400);
+            return c.json(new ApiResponse(400, null, 'Valid quantity required'), 400);
         }
 
         const result = await PurchaseOrderService.patchItemQuantity(poId, itemId, quantity, user);
@@ -90,6 +114,6 @@ export class PurchaseOrderController {
             branchId: user.branchId
         });
 
-        return c.json({ status: 'success', data: result });
+        return c.json(new ApiResponse(200, result, 'Item quantity updated successfully'));
     }
 }

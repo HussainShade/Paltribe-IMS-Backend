@@ -1,5 +1,8 @@
 import { Context } from 'hono';
 import { CategoryService } from '../services';
+import { Category } from '../models';
+import { ApiError } from '../utils/ApiError';
+import { ApiResponse } from '../utils/ApiResponse';
 
 export class CategoryController {
     static async create(c: Context) {
@@ -12,7 +15,7 @@ export class CategoryController {
         // Based on logic, we demand branchId.
 
         if (!user.branchId && user.roleCode !== 'SA') {
-            return c.json({ status: 'error', message: 'Branch context required' }, 400);
+            return c.json(new ApiResponse(400, null, 'Branch context required'), 400);
         }
 
         let branchId = user.branchId;
@@ -37,12 +40,20 @@ export class CategoryController {
         // Service Create expects data + user. 
         // We should probably override/ensure branchId is passed to Service/Model.
         const body = await c.req.json();
+        const { name, status } = body; // Assuming name and status are in the body
 
         // Explicitly set branchId in data passed to service
         const data = { ...body, branchId: branchId };
 
-        const category = await CategoryService.create(data, user);
-        return c.json({ status: 'success', data: category }, 201);
+        // Create Category
+        const category = await Category.create({
+            tenantId: user.tenantId, // Always use user's tenant
+            name,
+            status,
+            branchId: branchId // Ensure branchId is passed to the model
+        });
+
+        return c.json(new ApiResponse(201, category, 'Category created successfully'), 201);
     }
 
     static async list(c: Context) {
@@ -57,6 +68,6 @@ export class CategoryController {
         }
 
         const categories = await CategoryService.list(user.tenantId, branchId);
-        return c.json({ status: 'success', data: categories });
+        return c.json(new ApiResponse(200, categories, 'Categories fetched successfully'));
     }
 }

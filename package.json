@@ -2,7 +2,8 @@
   "name": "ims-backend",
   "scripts": {
     "dev": "bun run --hot src/index.ts",
-    "build": "bun build ./src/index.ts --outdir ./dist --target bun"
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun",
+    "test": "bun src/scripts/test_all_apis.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.6",

@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 import { AppError } from '../utils/errors';
 
 export class IssueService {
-    static async createIssue(data: any, user: any) {
+    static async createIssue(data: any, user: any, branchId: string) {
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
@@ -14,7 +14,7 @@ export class IssueService {
 
             const issue = await Issue.create([{
                 tenantId: user.tenantId,
-                branchId: user.branchId,
+                branchId: branchId,
                 indentId: data.indentId,
                 issuedBy: user._id,
             }], { session });
@@ -39,7 +39,7 @@ export class IssueService {
                 // Decrement stock
                 await InventoryService.decrementStock(
                     user.tenantId.toString(),
-                    user.branchId.toString(),
+                    branchId,
                     indent.workAreaId.toString(),
                     item.itemId,
                     qtyToIssue,

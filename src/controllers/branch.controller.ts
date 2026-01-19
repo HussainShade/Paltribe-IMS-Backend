@@ -1,5 +1,8 @@
 import { Context } from 'hono';
 import { BranchService } from '../services';
+import { Branch } from '../models';
+import { ApiError } from '../utils/ApiError';
+import { ApiResponse } from '../utils/ApiResponse';
 
 export class BranchController {
     static async list(c: Context) {
@@ -39,31 +42,39 @@ export class BranchController {
             // I will filter in memory or update service?
             // Update service is better.
             branches = branches.filter(b => b._id.toString() === user.branchId.toString());
+            return c.json(new ApiResponse(200, branches, 'Branches fetched successfully'));
         } else {
-            branches = await BranchService.list(user.tenantId);
+            const branches = await Branch.find({ tenantId: user.tenantId });
+            return c.json(new ApiResponse(200, branches, 'Branches fetched successfully'));
         }
-
-        return c.json({ status: 'success', data: branches });
     }
 
     static async create(c: Context) {
         // Permission middleware handles "BRANCH.CREATE" check.
         const user = c.get('user');
-        const body = await c.req.json();
-        const branch = await BranchService.create(body, user);
-        return c.json({ status: 'success', data: branch }, 201);
+        const { branchName, location, status } = await c.req.json(); // Destructure body for clarity
+        const branch = await Branch.create({
+            tenantId: user.tenantId,
+            branchName,
+            location,
+            status
+        });
+
+        return c.json(new ApiResponse(201, branch, 'Branch created successfully'), 201);
     }
 
     static async update(c: Context) {
         const user = c.get('user');
         const id = c.req.param('id');
-        const body = await c.req.json();
-        const branch = await BranchService.update(id, body, user);
+        const updates = await c.req.json(); // Use 'updates' as per the provided snippet
+        const branch = await Branch.findOneAndUpdate(
+            { _id: id, tenantId: user.tenantId },
+            updates,
+            { new: true }
+        );
 
-        if (!branch) {
-            return c.json({ status: 'error', message: 'Branch not found' }, 404);
-        }
+        if (!branch) throw new ApiError(404, 'Branch not found');
 
-        return c.json({ status: 'success', data: branch });
+        return c.json(new ApiResponse(200, branch, 'Branch updated successfully'));
     }
 }

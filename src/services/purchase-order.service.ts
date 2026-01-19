@@ -1,16 +1,17 @@
 import { PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus } from '../models';
 import mongoose from 'mongoose';
-import { AppError } from '../utils/errors';
+import { ApiError } from '../utils/ApiError';
 import { AuditLogService } from './audit-log.service';
 
 export class PurchaseOrderService {
-    static async createPO(data: any, user: any) {
+    static async createPO(data: any, user: any, branchId: string) {
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
             const po = await PurchaseOrder.create([{
                 tenantId: user.tenantId,
-                branchId: user.branchId,
+                branchId: branchId,
+                prNo: data.prNo || null,
                 vendorId: data.vendorId,
                 createdBy: user._id,
                 deliveryDate: data.deliveryDate,
@@ -47,10 +48,57 @@ export class PurchaseOrderService {
         }
     }
 
+    static async updatePO(poId: string, data: any, user: any) {
+        const po = await PurchaseOrder.findOne({ _id: poId, tenantId: user.tenantId });
+        if (!po) throw new ApiError(404, 'PO not found');
+        if (po.status !== PurchaseOrderStatus.OPEN) throw new ApiError(400, 'Only OPEN POs can be updated');
+
+        if (data.deliveryDate) po.deliveryDate = data.deliveryDate;
+        if (data.vendorId) po.vendorId = data.vendorId;
+        // Vendor change might invalidate items prices? Ignoring for now as per requirement complexity.
+
+        await po.save();
+        return po;
+    }
+
+    static async cancelPO(poId: string, user: any) {
+        const po = await PurchaseOrder.findOne({ _id: poId, tenantId: user.tenantId });
+        if (!po) throw new ApiError(404, 'PO not found');
+        if (po.status !== PurchaseOrderStatus.OPEN) throw new ApiError(400, 'Only OPEN POs can be cancelled');
+
+        po.status = PurchaseOrderStatus.CANCELLED;
+        await po.save();
+        return po;
+    }
+
+    static async deletePO(poId: string, user: any) {
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            const po = await PurchaseOrder.findOne({ _id: poId, tenantId: user.tenantId }).session(session);
+            if (!po) throw new ApiError(404, 'PO not found');
+
+            if (po.status !== PurchaseOrderStatus.OPEN && po.status !== PurchaseOrderStatus.CANCELLED) {
+                throw new ApiError(400, 'Cannot delete APPROVED or CLOSED POs');
+            }
+
+            await PurchaseOrderItem.deleteMany({ poId: po._id }, { session });
+            await PurchaseOrder.deleteOne({ _id: po._id }, { session });
+
+            await session.commitTransaction();
+            return { message: 'PO deleted successfully' };
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
+        }
+    }
+
     static async approvePO(poId: string, user: any) {
         const po = await PurchaseOrder.findOne({ _id: poId, tenantId: user.tenantId });
-        if (!po) throw new AppError('PO not found', 404);
-        if (po.status !== PurchaseOrderStatus.OPEN) throw new AppError('PO is not OPEN', 400);
+        if (!po) throw new ApiError(404, 'PO not found');
+        if (po.status !== PurchaseOrderStatus.OPEN) throw new ApiError(400, 'PO is not OPEN');
 
         po.status = PurchaseOrderStatus.APPROVED;
         po.approvedBy = user._id;
@@ -63,11 +111,13 @@ export class PurchaseOrderService {
         session.startTransaction();
         try {
             const po = await PurchaseOrder.findOne({ _id: poId, tenantId: user.tenantId }).session(session);
-            if (!po) throw new AppError('PO not found', 404);
-            if (po.status !== PurchaseOrderStatus.OPEN) throw new AppError('Cannot update items in closed/approved PO', 400);
+            if (!po) throw new ApiError(404, 'PO not found');
+            if (po.status !== PurchaseOrderStatus.OPEN) throw new ApiError(400, 'Cannot update items in closed/approved PO');
 
             const poItem = await PurchaseOrderItem.findOne({ poId: po._id, itemId: itemId }).session(session);
-            if (!poItem) throw new AppError('Item not found in PO', 404);
+            if (!poItem) throw new ApiError(404, 'Item not found in PO');
+
+            const oldQuantity = poItem.quantity;
 
             // Update item
             poItem.quantity = quantity;
@@ -81,9 +131,11 @@ export class PurchaseOrderService {
             po.totalAmount = newTotal;
             await po.save({ session });
 
-            await session.commitTransaction();
-
-            // ... (in patchItemQuantity method)
+            // Explicit Audit Log handled in controller or here? Service shouldn't depend on Controller logic but can log.
+            // But Controller in previous code did logging. Keeping it consistent?
+            // Actually previous code had AuditLogService import but commented out usage or structure was weird.
+            // Let's rely on Controller to call AuditLog for simple actions, or Service.
+            // Service is better encapsulation.
 
             // Explicit Audit Log
             await AuditLogService.log({
@@ -93,16 +145,14 @@ export class PurchaseOrderService {
                 performedBy: user.userId,
                 details: {
                     itemId: itemId,
-                    oldQuantity: poItem.quantity, // We don't have old qty easily unless we fetched before update, but logic updated in place. 
-                    // Actually we fetched `poItem` before update in line 68. 
-                    // But we modified `poItem` object in memory on line 72. 
-                    // So `poItem.quantity` is NEW quantity.
+                    oldQuantity: oldQuantity,
                     newQuantity: quantity
                 },
                 tenantId: user.tenantId,
                 branchId: user.branchId
             });
 
+            await session.commitTransaction();
             return { po, poItem };
         } catch (error) {
             await session.abortTransaction();

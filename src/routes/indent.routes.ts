@@ -32,6 +32,20 @@ indentRoutes.patch(
     IndentController.approve
 );
 
+indentRoutes.patch(
+    '/:id/reject',
+    branchMiddleware,
+    requirePermission('INDENT.REJECT'), // Assuming permission
+    IndentController.reject
+);
+
+indentRoutes.patch(
+    '/:id/cancel',
+    branchMiddleware,
+    requirePermission('INDENT.CANCEL'), // Assuming permission
+    IndentController.cancel
+);
+
 // Issue
 indentRoutes.post(
     '/issue',

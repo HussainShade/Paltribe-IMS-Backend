@@ -13,6 +13,7 @@ export interface IGRN extends Document {
   totalAmount: number;
   createdAt: Date;
   updatedAt: Date;
+  items?: any[]; // Virtual
 }
 
 const GRNSchema = new Schema<IGRN>(
@@ -22,6 +23,7 @@ const GRNSchema = new Schema<IGRN>(
     poId: { type: Schema.Types.ObjectId, ref: 'PurchaseOrder', default: null },
     soId: { type: Schema.Types.ObjectId, ref: 'SpecialOrder', default: null },
     vendorInvoiceNo: { type: String, required: true },
+    vendorInvoiceDate: { type: Date, required: true },
     goodsReceivedDate: { type: Date, default: Date.now },
     workAreaId: { type: Schema.Types.ObjectId, ref: 'WorkArea', required: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
@@ -34,18 +36,22 @@ const GRNSchema = new Schema<IGRN>(
 );
 
 // Validate that either poId OR soId is provided, but not both/neither
-GRNSchema.pre('validate', function (next: any) {
+GRNSchema.pre('validate', async function () {
   if (this.poId && this.soId) {
-    next(new Error('Cannot link both Purchase Order and Special Order to a single GRN.'));
+    throw new Error('Cannot link both Purchase Order and Special Order to a single GRN.');
   } else if (!this.poId && !this.soId) {
-    next(new Error('GRN must be linked to either a Purchase Order or a Special Order.'));
-  } else {
-    next();
+    throw new Error('GRN must be linked to either a Purchase Order or a Special Order.');
   }
 });
 
 GRNSchema.virtual('grnId').get(function (this: IGRN) {
   return this._id;
+});
+
+GRNSchema.virtual('items', {
+  ref: 'GRNItem',
+  localField: '_id',
+  foreignField: 'grnId',
 });
 
 GRNSchema.set('toJSON', {
@@ -58,10 +64,12 @@ GRNSchema.set('toJSON', {
   },
 });
 
+GRNSchema.set('toObject', { virtuals: true });
+
 GRNSchema.index({ tenantId: 1, branchId: 1 });
 GRNSchema.index({ tenantId: 1, poId: 1 });
 GRNSchema.index({ tenantId: 1, soId: 1 });
 GRNSchema.index({ tenantId: 1, goodsReceivedDate: -1 });
-GRNSchema.index({ tenantId: 1, workAreaId: 1 }); 
+GRNSchema.index({ tenantId: 1, workAreaId: 1 });
 
 export const GRN: Model<IGRN> = mongoose.model<IGRN>('GRN', GRNSchema);

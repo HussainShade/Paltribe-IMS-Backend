@@ -1,5 +1,7 @@
 import { Context } from 'hono';
 import { Vendor, VendorStatus } from '../models';
+import { ApiError } from '../utils/ApiError';
+import { ApiResponse } from '../utils/ApiResponse';
 import { Variables } from '../types';
 
 export class VendorController {
@@ -12,10 +14,7 @@ export class VendorController {
             tenantId: user.tenantId,
         });
 
-        return c.json({
-            status: 'success',
-            data: vendor,
-        }, 201);
+        return c.json(new ApiResponse(201, vendor, 'Vendor created successfully'), 201);
     }
 
     static async list(c: Context<{ Variables: Variables }>) {
@@ -37,16 +36,15 @@ export class VendorController {
             Vendor.countDocuments(query),
         ]);
 
-        return c.json({
-            status: 'success',
-            data: vendors,
+        return c.json(new ApiResponse(200, {
+            vendors,
             meta: {
                 total,
                 page: parseInt(page),
                 limit: parseInt(limit),
                 totalPages: Math.ceil(total / parseInt(limit)),
             }
-        });
+        }, 'Vendors retrieved successfully'));
     }
 
     static async get(c: Context<{ Variables: Variables }>) {
@@ -56,10 +54,10 @@ export class VendorController {
         const vendor = await Vendor.findOne({ _id: id, tenantId: user.tenantId });
 
         if (!vendor) {
-            return c.json({ status: 'error', message: 'Vendor not found' }, 404);
+            throw new ApiError(404, 'Vendor not found');
         }
 
-        return c.json({ status: 'success', data: vendor });
+        return c.json(new ApiResponse(200, vendor, 'Vendor retrieved successfully'));
     }
 
     static async update(c: Context<{ Variables: Variables }>) {
@@ -74,10 +72,10 @@ export class VendorController {
         );
 
         if (!updatedVendor) {
-            return c.json({ status: 'error', message: 'Vendor not found' }, 404);
+            throw new ApiError(404, 'Vendor not found');
         }
 
-        return c.json({ status: 'success', data: updatedVendor });
+        return c.json(new ApiResponse(200, updatedVendor, 'Vendor updated successfully'));
     }
 
     static async delete(c: Context<{ Variables: Variables }>) {

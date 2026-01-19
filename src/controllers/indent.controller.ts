@@ -1,20 +1,37 @@
 import { Context } from 'hono';
 import { IndentService, IssueService } from '../services';
 import { Indent } from '../models';
+import { ApiError } from '../utils/ApiError';
+import { ApiResponse } from '../utils/ApiResponse';
 
 export class IndentController {
     static async create(c: Context) {
         const user = c.get('user');
         const data = await c.req.json();
-        const indent = await IndentService.createIndent(data, user);
-        return c.json({ status: 'success', data: indent }, 201);
+        const branchId = c.get('branchId');
+        const indent = await IndentService.createIndent(data, user, branchId);
+        return c.json(new ApiResponse(201, indent, 'Indent created successfully'), 201);
     }
 
     static async approve(c: Context) {
         const user = c.get('user');
         const indentId = c.req.param('id');
         const indent = await IndentService.approveIndent(indentId, user);
-        return c.json({ status: 'success', data: indent });
+        return c.json(new ApiResponse(200, indent, 'Indent approved successfully'));
+    }
+
+    static async reject(c: Context) {
+        const user = c.get('user');
+        const indentId = c.req.param('id');
+        const indent = await IndentService.rejectIndent(indentId, user);
+        return c.json(new ApiResponse(200, indent, 'Indent rejected successfully'));
+    }
+
+    static async cancel(c: Context) {
+        const user = c.get('user');
+        const indentId = c.req.param('id');
+        const indent = await IndentService.cancelIndent(indentId, user);
+        return c.json(new ApiResponse(200, indent, 'Indent cancelled successfully'));
     }
 
     static async list(c: Context) {
@@ -40,22 +57,22 @@ export class IndentController {
             Indent.countDocuments(query),
         ]);
 
-        return c.json({
-            status: 'success',
-            data: indents,
+        return c.json(new ApiResponse(200, {
+            indents,
             meta: {
                 total,
                 page: parseInt(page),
                 limit: parseInt(limit),
                 totalPages: Math.ceil(total / parseInt(limit)),
             }
-        });
+        }, 'Indents retrieved successfully'));
     }
 
     static async issue(c: Context) {
         const user = c.get('user');
         const data = await c.req.json();
-        const issue = await IssueService.createIssue(data, user);
-        return c.json({ status: 'success', data: issue }, 201);
+        const branchId = c.get('branchId');
+        const issue = await IssueService.createIssue(data, user, branchId);
+        return c.json(new ApiResponse(201, issue, 'Issue created successfully'), 201);
     }
 }

@@ -8,7 +8,7 @@ export enum WorkAreaStatus {
 export interface IWorkArea extends Document {
   workAreaId: mongoose.Types.ObjectId;
   tenantId: mongoose.Types.ObjectId;
-  branchId: mongoose.Types.ObjectId;
+  branchIds: mongoose.Types.ObjectId[];
   name: string;
   status: WorkAreaStatus;
   createdAt: Date;
@@ -18,7 +18,7 @@ export interface IWorkArea extends Document {
 const WorkAreaSchema = new Schema<IWorkArea>(
   {
     tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
-    branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
+    branchIds: [{ type: Schema.Types.ObjectId, ref: 'Branch', required: true }],
     name: { type: String, required: true },
     status: { type: String, enum: Object.values(WorkAreaStatus), default: WorkAreaStatus.ACTIVE },
   },
@@ -42,7 +42,7 @@ WorkAreaSchema.set('toJSON', {
   },
 });
 
-WorkAreaSchema.index({ tenantId: 1, branchId: 1, status: 1 });
-WorkAreaSchema.index({ tenantId: 1, branchId: 1, name: 1 });
+WorkAreaSchema.index({ tenantId: 1, status: 1 });
+WorkAreaSchema.index({ tenantId: 1, name: 1 });
 
 export const WorkArea: Model<IWorkArea> = mongoose.model<IWorkArea>('WorkArea', WorkAreaSchema);

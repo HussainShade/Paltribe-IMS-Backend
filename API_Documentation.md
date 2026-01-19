@@ -2,389 +2,347 @@
 
 **Base URL**: `http://localhost:3000/api/v1`
 
-This documentation details all available API endpoints, their methods, request bodies, and success responses.
+## 📏 Standard API Response
+All API endpoints return a consistent JSON structure.
 
----
-
-## 1. System Health
-
-### Check Health status
-**GET** `/health` (Root level, not under `/api/v1`)
-**URL**: `http://localhost:3000/health`
-
-**Response**:
+**Success Response**:
 ```json
 {
-    "status": "ok",
-    "uptime": 123.45
+  "statusCode": 200,
+  "data": { ... }, // Object or Array
+  "message": "Operation successful",
+  "success": true
 }
 ```
 
+**Error Response**:
+```json
+{
+  "statusCode": 400, // or 401, 404, 500 etc.
+  "message": "Error description",
+  "errors": [], // Optional validation errors
+  "success": false
+}
+```
+
+## 🧪 Sequential Testing Flow
+To test the entire system manually after running `npm run seed`, follow this order:
+1.  **Login** as Super Admin or Branch Manager (Credentials in Seed Output).
+2.  **Setup Masters**: Create **Work Areas**, **Categories**, **Vendors**.
+3.  **Create Items**: Create Items using the Categories.
+4.  **Procurement**: Create **PO** -> Approve PO -> Create **GRN** (Stock increases).
+5.  **Operations**: Check **Inventory** -> Create **Indent** -> Issue Stock (Stock decreases).
+6.  **Analyze**: Check **Dashboard**, **Reports**, and **Audit Logs**.
+
 ---
 
-## 2. Authentication
+## 1. Authentication
+*Start here to get your Access Token.*
 
 ### Login
 **POST** `/auth/login`
+**Response** includes `accessToken`. Use this token in the header `Authorization: Bearer <token>` for all subsequent requests.
 
 **Body**:
 ```json
 {
-    "tenantId": "<TenantID>",
+    "tenantId": "<TenantID_from_Seed_Output>",
     "email": "admin@paltribe.com",
     "password": "password123"
 }
 ```
 
-**Response**:
-```json
-{
-    "status": "success",
-    "data": {
-        "user": {
-            "tenantId": "...",
-            "branchId": null,
-            "roleId": "...",
-            "name": "Paltribe Admin",
-            "email": "admin@paltribe.com",
-            "status": "ACTIVE"
-        },
-        "permissions": [ "USER.CREATE", "..." ],
-        "accessToken": "<accessToken>",
-        "refreshToken": "<refreshToken>"
-    }
-}
-```
-
 ### Refresh Token
 **POST** `/auth/refresh`
-
-**Body**:
-```json
-{
-    "refreshToken": "<refreshToken>"
-}
-```
-
-**Response**:
-```json
-{
-    "status": "success",
-    "data": {
-        "accessToken": "<accessToken>"
-    }
-}
-```
+**Body**: `{"refreshToken": "..."}`
 
 ---
 
-## 3. User Management
-*Requires Header: `Authorization: Bearer <accessToken>`*
+## 2. System Setup (Master Data)
+*Create these first as they are required for operations.*
 
-### Create User
-**POST** `/users`
-*Permission*: `USER.CREATE`
+### Branch Management
+*Required for Work Areas*
 
-**Body**:
-```json
-{
-    "name": "Branch Manager",
-    "email": "manager@paltribe.com",
-    "password": "password123",
-    "roleId": "<RoleID>",
-    "branchId": "<BranchID>"
-}
-```
-
-### List Users
-**GET** `/users`
-*Permission*: `USER.VIEW`
-*Query Params*: `?page=1&limit=10`
-
-### Get User
-**GET** `/users/:id`
-*Permission*: `USER.VIEW`
-
-### Update User
-**PATCH** `/users/:id`
-*Permission*: `USER.UPDATE`
-
-**Body**:
-```json
-{
-    "name": "New Name"
-}
-```
-
-### Delete User
-**DELETE** `/users/:id`
-*Permission*: `USER.DELETE`
-
----
-
-## 4. Vendor Management
-*Requires Header: `Authorization: Bearer <accessToken>`*
-
-### Create Vendor
-**POST** `/vendors`
-*Permission*: `VENDOR.CREATE`
-
-**Body**:
-```json
-{
-    "vendorName": "Acme Supplies",
-    "gstNo": "GSTIN12345",
-    "contactDetails": {
-        "phone": "9876543210",
-        "email": "contact@acme.com",
-        "address": "123 Supply St"
-    }
-}
-```
-
-### List Vendors
-**GET** `/vendors`
-*Permission*: `VENDOR.VIEW`
-*Query Params*: `?page=1&limit=10&search=...`
-
-### Get Vendor
-**GET** `/vendors/:id`
-*Permission*: `VENDOR.VIEW`
-
-### Update Vendor
-**PATCH** `/vendors/:id`
-*Permission*: `VENDOR.UPDATE`
-
-### Delete Vendor
-**DELETE** `/vendors/:id`
-*Permission*: `VENDOR.DELETE`
-
----
-
-## 5. Branch Management
-*Requires Header: `Authorization: Bearer <accessToken>`*
-
-### Create Branch
+#### Create Branch
 **POST** `/branches`
-*Permission*: `BRANCH.CREATE`
-
-**Body**:
 ```json
 {
-    "branchName": "Main Branch",
-    "location": "Downtown"
-}
-```
-
-### List Branches
-**GET** `/branches`
-*Permission*: `BRANCH.VIEW`
-
-### Update Branch
-**PATCH** `/branches/:id`
-*Permission*: `BRANCH.UPDATE`
-
-**Body**:
-```json
-{
-    "branchName": "New Branch Name",
-    "location": "New Location"
-}
-```
-
----
-
-## 6. Category Management
-*Requires Header: `Authorization: Bearer <accessToken>`*
-
-### Create Category
-**POST** `/categories`
-*Permission*: `CATEGORY.CREATE`
-
-**Body**:
-```json
-{
-    "name": "Electronics",
+    "branchName": "Downtown Branch",
+    "location": "City Center",
     "status": "ACTIVE"
 }
 ```
 
-### List Categories
+#### List Branches
+**GET** `/branches`
+
+### Work Area Management
+*Kitchens, Bars, Stores*
+
+#### Create Work Area
+**POST** `/work-areas`
+```json
+{
+    "name": "Main Kitchen",
+    "branchIds": ["<BranchID_from_Seed_Output>"],
+    "status": "ACTIVE"
+}
+```
+
+#### List Work Areas
+**GET** `/work-areas`
+
+### Category Management
+*Food, Liquor, Consumables*
+
+#### Create Category
+**POST** `/categories`
+```json
+{
+    "name": "Vegetables",
+    "status": "ACTIVE"
+}
+```
+
+#### List Categories
 **GET** `/categories`
-*Permission*: `CATEGORY.VIEW`
+
+### Vendor Management
+*Suppliers*
+
+#### Create Vendor
+**POST** `/vendors`
+```json
+{
+    "vendorName": "Fresh Farms Ltd",
+    "gstNo": "GSTIN123",
+    "contactDetails": { "phone": "9999999999" }
+}
+```
+
+#### List Vendors
+**GET** `/vendors`
 
 ---
 
-## 7. Item Management
-*Requires Header: `Authorization: Bearer <accessToken>`*
+## 3. Product Management
+*Requires Categories to exist.*
 
-### Create Item
+### Item Management
+
+#### Create Item
 **POST** `/items`
-*Permission*: `ITEM.CREATE`
-
-**Body**:
 ```json
 {
     "itemCode": "VEG-001",
-    "itemName": "Fresh Tomato",
+    "itemName": "Tomato",
     "categoryId": "<CategoryID>",
     "inventoryUom": "KG",
     "unitCost": 40,
-    "taxRate": 5
+    "taxRate": 5,
+    "ledger": "General Ledger",
+    "classification": "Vegetable",
+    "subCategoryId": "<SubCategoryID>",
+    "yield": 95,
+    "weight": 1000,
+    "leadTime": 2,
+    "packageDetails": [
+      { "name": "Box", "brand": "FarmFresh", "qty": 10, "price": 400, "parLevel": 5 }
+    ]
 }
 ```
 
-### List Items
+#### List Items
 **GET** `/items`
-*Permission*: `ITEM.VIEW`
-*Query Params*: `?page=1&limit=10&search=...&categoryId=...`
-
-### Get Item
-**GET** `/items/:id`
-*Permission*: `ITEM.VIEW`
-
-### Update Item
-**PATCH** `/items/:id`
-*Permission*: `ITEM.UPDATE`
-
-### Delete Item
-**DELETE** `/items/:id`
-*Permission*: `ITEM.DELETE`
 
 ---
 
-## 8. Purchase Orders (PO)
-*Requires Header: `Authorization: Bearer <accessToken>`*
+## 4. Procurement Cycle (Inbound)
+*Requires Vendors and Items.*
 
-### Create PO
+### Purchase Orders (PO)
+
+#### Create PO
 **POST** `/purchase-orders`
-*Permission*: `PO.CREATE`
-
-**Body**:
 ```json
 {
+    "prNo": "PR-1001",
     "vendorId": "<VendorID>",
-    "deliveryDate": "2024-12-31T00:00:00.000Z",
+    "deliveryDate": "2024-12-31",
     "items": [
-        {
-            "itemId": "<ItemID>",
-            "quantity": 100,
-            "unitCost": 40,
-            "taxRate": 5
-        }
+        { "itemId": "<ItemID>", "quantity": 100, "unitCost": 40, "taxRate": 5 }
     ]
 }
 ```
 
-### Approve PO
+#### List Pending POs
+**GET** `/purchase-orders?status=PENDING`
+
+#### Approve PO
 **PATCH** `/purchase-orders/:id/approve`
-*Permission*: `PO.APPROVE` (Likely required by logic or role)
+Body: `{"status": "APPROVED"}`
 
-**Body**:
-```json
-{
-    "status": "APPROVED"
-}
-```
+### Goods Received Note (GRN)
+*Requires Approved PO and Work Area.*
 
-### Update PO Item Quantity
-**PATCH** `/purchase-orders/:id/items/:itemId`
-*Permission*: `PO.UPDATE`
-
-**Body**:
-```json
-{
-    "quantity": 150
-}
-```
-
-> **Note**: There is currently no API endpoint to **List** Purchase Orders.
-
----
-
-## 9. Goods Received Note (GRN)
-*Requires Header: `Authorization: Bearer <accessToken>`*
-
-### Create GRN
+#### Create GRN
 **POST** `/grn`
-*Permission*: `GRN.CREATE`
-
-**Body**:
+This action **increases stock**.
 ```json
 {
-    "poId": "<POID>",
-    "vendorInvoiceNo": "INV-999",
+    "poId": "<Approved_PO_ID>",
+    "vendorInvoiceNo": "INV-2024-001",
+    "vendorInvoiceDate": "2024-12-30",
     "workAreaId": "<WorkAreaID>",
     "items": [
-        {
-            "itemId": "<ItemID>",
-            "receivedQty": 100,
-            "unitCost": 40
-        }
+        { "itemId": "<ItemID>", "receivedQty": 100, "unitCost": 40, "taxAmount": 100 }
     ]
 }
 ```
 
-### List GRNs
+#### List GRNs
 **GET** `/grn`
-*Permission*: `GRN.VIEW`
 
 ---
 
-## 10. Indents & Inventory
-*Requires Header: `Authorization: Bearer <accessToken>`*
+## 5. Operations (Internal)
+*Requires Stock (from GRN).*
 
-### Get Inventory Stock
+### Inventory (Live Stock)
 **GET** `/inventory`
-*Permission*: Access restrictions apply (Branch based).
+Check if stock increased after GRN.
 
-### Create Indent
+### Indents (Internal Requests)
+
+#### Create Indent
 **POST** `/indents`
-*Permission*: `INDENT.CREATE`
-
-**Body**:
 ```json
 {
     "workAreaId": "<WorkAreaID>",
-    "items": [
-        {
-            "itemId": "<ItemID>",
-            "requestedQty": 10
-        }
-    ]
+    "remarks": "Urgent Requirement",
+    "entryType": "OPEN",
+    "items": [ { "itemId": "<ItemID>", "requestedQty": 10 } ]
 }
 ```
 
-### List Indents
+#### List Indents
 **GET** `/indents`
-*Permission*: `INDENT.VIEW`
 
-### Approve Indent
-**PATCH** `/indents/:id/approve`
-*Permission*: `INDENT.APPROVE`
-
-### Issue Indent (Move Stock)
+#### Issue Indent (Move Stock)
 **POST** `/indents/issue`
-*Permission*: `INDENT.ISSUE`
-
-**Body**:
+This action **decreases stock**.
 ```json
 {
     "indentId": "<IndentID>",
-    "items": [
-        {
-            "itemId": "<ItemID>",
-            "issuedQty": 10
-        }
-    ]
+    "items": [ { "itemId": "<ItemID>", "issuedQty": 10 } ]
 }
 ```
 
 ---
 
-## 11. Audit Logs
-*Requires Header: `Authorization: Bearer <accessToken>`*
+## 6. Dashboards & Reports
+*View the results of your operations.*
 
-### List Audit Logs
+### Dashboard
+**GET** `/dashboard/stats`
+(Total Stock Value, Pending POs, etc.)
+
+### Reports
+**GET** `/reports/live-stock`
+**GET** `/reports/po-status`
+**GET** `/reports/detailed-grn`
+*(See list of all 12 reports in previous section)*
+
+---
+
+## 7. User & Role Administration
+*Manage access and users.*
+
+### User Management
+**POST** `/users`
+**GET** `/users`
+
+### Role Management
+**GET** `/roles`
+**GET** `/roles/:id`
+**PUT** `/roles/:id/permissions` (Update Permissions)
+
+### Permission Management
+**GET** `/permissions`
+
+### Profile
+**GET** `/profile/me`
+**PUT** `/profile/change-password`
+
+
+
+### Audit Logs
 **GET** `/audit-logs`
-*Permission*: `LOGS.VIEW`
+
+---
+
+## 8. Returns & Special Orders (New Modules)
+
+### Returns (RTV)
+*Return items to vendor from a specific GRN.*
+
+#### Create RTV
+**POST** `/rtv`
+This action **decreases stock**.
+```json
+{
+    "grnId": "<GRN_ID>",
+    "itemId": "<ITEM_ID>",
+    "returnedQty": 10,
+    "reason": "Damaged goods"
+}
+```
+
+#### List RTVs
+**GET** `/rtv`
+
+### Special Orders
+*Ad-hoc orders.*
+
+#### Create Special Order
+**POST** `/special-orders`
+```json
+{
+    "vendorId": "<VENDOR_ID>",
+    "items": [...],
+    "deliveryDate": "2024-12-31"
+}
+```
+
+#### List Special Orders
+**GET** `/special-orders`
+
+#### Approve/Close
+**PATCH** `/special-orders/:id/approve`
+**PATCH** `/special-orders/:id/close`
+
+---
+
+## 9. Extended CRUD Operations
+
+### Purchase Orders
+**PATCH** `/purchase-orders/:id` (Update fields like `deliveryDate`)
+**PATCH** `/purchase-orders/:id/cancel` (Cancel OPEN PO)
+**DELETE** `/purchase-orders/:id` (Delete OPEN PO)
+
+### Indents
+**PATCH** `/indents/:id/reject` (Reject OPEN Indent)
+**PATCH** `/indents/:id/cancel` (Cancel OPEN Indent)
+
+### Inventory
+**POST** `/inventory/adjust` (Manual Stock Adjustment)
+Actions: Positive quantity adds stock, negative removes stock. Use for audit corrections.
+```json
+{
+    "itemId": "<ITEM_ID>",
+    "workAreaId": "<WORK_AREA_ID>",
+    "quantity": -5,
+    "reason": "Spillage"
+}
+```

@@ -3,19 +3,13 @@ import { InventoryStock } from '../models';
 import { authMiddleware, branchMiddleware } from '../middlewares';
 import { Variables } from '../types';
 
+import { InventoryController } from '../controllers/inventory.controller';
+
 const inventoryRoutes = new Hono<{ Variables: Variables }>();
 
 inventoryRoutes.use('*', authMiddleware, branchMiddleware);
 
-inventoryRoutes.get('/', async (c) => {
-    const user = c.get('user');
-    // Simple list stock
-    const stock = await InventoryStock.find({
-        tenantId: user.tenantId,
-        branchId: user.branchId
-    }).populate('itemId', 'itemName itemCode');
-
-    return c.json({ status: 'success', data: stock });
-});
+inventoryRoutes.get('/', InventoryController.list);
+inventoryRoutes.post('/adjust', InventoryController.adjust);
 
 export default inventoryRoutes;

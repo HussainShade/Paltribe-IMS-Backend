@@ -26,10 +26,9 @@ const IndentItemSchema = new Schema<IIndentItem>(
 );
 
 // Auto-calculate pendingQty before saving
-IndentItemSchema.pre('save', function (this: any, next: any) {
+IndentItemSchema.pre('save', function (this: any) {
   const doc = this as IIndentItem;
   doc.pendingQty = Math.max(0, doc.requestedQty - (doc.issuedQty || 0));
-  next();
 });
 
 IndentItemSchema.virtual('indentItemId').get(function (this: IIndentItem) {

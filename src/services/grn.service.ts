@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 import { AppError } from '../utils/errors';
 
 export class GRNService {
-    static async createGRN(data: any, user: any) {
+    static async createGRN(data: any, user: any, branchId: string) {
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
@@ -17,10 +17,11 @@ export class GRNService {
 
             const grn = await GRN.create([{
                 tenantId: user.tenantId,
-                branchId: user.branchId,
+                branchId: branchId,
                 poId: data.poId,
                 soId: data.soId,
                 vendorInvoiceNo: data.vendorInvoiceNo,
+                vendorInvoiceDate: data.vendorInvoiceDate,
                 workAreaId: data.workAreaId,
                 createdBy: user._id,
                 totalAmount: 0 // Update later
@@ -28,7 +29,8 @@ export class GRNService {
 
             let totalAmount = 0;
             const itemsToCreate = data.items.map((item: any) => {
-                const itemTotal = (item.receivedQty * item.unitCost) + item.taxAmount;
+                const taxAmount = item.taxAmount || 0;
+                const itemTotal = (item.receivedQty * item.unitCost) + taxAmount;
                 totalAmount += itemTotal;
                 return {
                     grnId: grn[0]._id,
@@ -49,7 +51,7 @@ export class GRNService {
             for (const item of itemsToCreate) {
                 await InventoryService.incrementStock(
                     user.tenantId.toString(),
-                    user.branchId.toString(),
+                    branchId,
                     data.workAreaId,
                     item.itemId,
                     item.receivedQty,

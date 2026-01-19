@@ -3,6 +3,9 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 export enum IndentStatus {
   OPEN = 'OPEN',
   APPROVED = 'APPROVED',
+  CLOSED = 'CLOSED',
+  REJECTED = 'REJECTED',
+  CANCELLED = 'CANCELLED',
   ISSUED = 'ISSUED',
 }
 
@@ -25,6 +28,8 @@ const IndentSchema = new Schema<IIndent>(
     workAreaId: { type: Schema.Types.ObjectId, ref: 'WorkArea', required: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     indentDate: { type: Date, default: Date.now },
+    remarks: { type: String, default: '' },
+    entryType: { type: String, enum: ['OPEN', 'PACKAGE'], default: 'OPEN' },
     status: { type: String, enum: Object.values(IndentStatus), default: IndentStatus.OPEN },
   },
   {

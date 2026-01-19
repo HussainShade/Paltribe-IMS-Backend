@@ -1,21 +1,41 @@
 import { Context } from 'hono';
-import { Item, ItemStatus } from '../models';
+import { Item, ItemStatus, Category } from '../models';
 import { Variables } from '../types';
+import { ApiError } from '../utils/ApiError';
+import { ApiResponse } from '../utils/ApiResponse';
 
 export class ItemController {
     static async create(c: Context<{ Variables: Variables }>) {
         const user = c.get('user');
-        const body = await c.req.json();
+        const {
+            itemCode, itemName, categoryId, subCategoryId, inventoryUom,
+            unitCost, taxRate, status, ledger, classification,
+            yield: yieldVal, weight, leadTime, packageDetails
+        } = await c.req.json();
+
+        // Check if category exists
+        const category = await Category.findOne({ _id: categoryId, tenantId: user.tenantId });
+        if (!category) throw new ApiError(404, 'Category not found');
 
         const item = await Item.create({
-            ...body,
             tenantId: user.tenantId,
+            itemCode,
+            itemName,
+            categoryId,
+            subCategoryId,
+            inventoryUom,
+            unitCost,
+            taxRate,
+            status,
+            ledger,
+            classification,
+            yield: yieldVal,
+            weight,
+            leadTime,
+            packageDetails
         });
 
-        return c.json({
-            status: 'success',
-            data: item,
-        }, 201);
+        return c.json(new ApiResponse(201, item, 'Item created successfully'), 201);
     }
 
     static async list(c: Context<{ Variables: Variables }>) {
@@ -41,11 +61,10 @@ export class ItemController {
             if (categoryId) {
                 if (!categoryIds.some(id => id.toString() === categoryId)) {
                     // The requested category is not in this branch -> return empty
-                    return c.json({
-                        status: 'success',
-                        data: [],
+                    return c.json(new ApiResponse(200, {
+                        items: [],
                         meta: { total: 0, page: parseInt(page), limit: parseInt(limit), totalPages: 0 }
-                    });
+                    }, 'No items found for the requested category/branch'));
                 }
                 query.categoryId = categoryId;
             } else {
@@ -54,11 +73,10 @@ export class ItemController {
                     query.categoryId = { $in: categoryIds };
                 } else {
                     // No categories in branch -> No items
-                    return c.json({
-                        status: 'success',
-                        data: [],
+                    return c.json(new ApiResponse(200, {
+                        items: [],
                         meta: { total: 0, page: parseInt(page), limit: parseInt(limit), totalPages: 0 }
-                    });
+                    }, 'No items found for the requested category/branch'));
                 }
             }
         } else {
@@ -84,16 +102,15 @@ export class ItemController {
             Item.countDocuments(query),
         ]);
 
-        return c.json({
-            status: 'success',
-            data: items,
+        return c.json(new ApiResponse(200, {
+            items,
             meta: {
                 total,
                 page: parseInt(page),
                 limit: parseInt(limit),
                 totalPages: Math.ceil(total / parseInt(limit)),
             }
-        });
+        }, 'Items retrieved successfully'));
     }
 
     static async get(c: Context<{ Variables: Variables }>) {
@@ -103,28 +120,31 @@ export class ItemController {
         const item = await Item.findOne({ _id: id, tenantId: user.tenantId }).populate('categoryId', 'name');
 
         if (!item) {
-            return c.json({ status: 'error', message: 'Item not found' }, 404);
+            throw new ApiError(404, 'Item not found');
         }
 
-        return c.json({ status: 'success', data: item });
+        return c.json(new ApiResponse(200, item, 'Item retrieved successfully'));
     }
 
     static async update(c: Context<{ Variables: Variables }>) {
         const user = c.get('user');
         const id = c.req.param('id');
-        const body = await c.req.json();
+        const updates = await c.req.json();
 
-        const updatedItem = await Item.findOneAndUpdate(
-            { _id: id, tenantId: user.tenantId },
-            { $set: body },
-            { new: true, runValidators: true }
-        );
-
-        if (!updatedItem) {
-            return c.json({ status: 'error', message: 'Item not found' }, 404);
+        if (updates.categoryId) {
+            const category = await Category.findOne({ _id: updates.categoryId, tenantId: user.tenantId });
+            if (!category) throw new ApiError(404, 'Category not found');
         }
 
-        return c.json({ status: 'success', data: updatedItem });
+        const item = await Item.findOneAndUpdate(
+            { _id: id, tenantId: user.tenantId },
+            updates,
+            { new: true }
+        ).populate('categoryId', 'name');
+
+        if (!item) throw new ApiError(404, 'Item not found');
+
+        return c.json(new ApiResponse(200, item, 'Item updated successfully'));
     }
 
     static async delete(c: Context<{ Variables: Variables }>) {

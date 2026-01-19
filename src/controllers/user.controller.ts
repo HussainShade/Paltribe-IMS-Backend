@@ -1,6 +1,8 @@
 import { Context } from 'hono';
 import { User, UserStatus, Role } from '../models'; // Added Role import
 import { Variables } from '../types';
+import { ApiResponse } from '../utils/ApiResponse';
+import { ApiError } from '../utils/ApiError';
 
 export class UserController {
     static async create(c: Context<{ Variables: Variables }>) {
@@ -11,13 +13,13 @@ export class UserController {
         if (user.roleCode !== 'SA') {
             const targetRole = await Role.findById(body.roleId);
             if (!targetRole) {
-                return c.json({ status: 'error', message: 'Invalid Role ID' }, 400);
+                return c.json(new ApiResponse(400, null, 'Invalid Role ID'), 400);
             }
 
             // Strict Constraint: BM can only create PE, SM, IR
             const allowedRoles = ['PE', 'SM', 'IR'];
             if (!allowedRoles.includes(targetRole.roleCode)) {
-                return c.json({ status: 'error', message: 'You are not authorized to create users with this role.' }, 403);
+                return c.json(new ApiResponse(403, null, 'You are not authorized to create users with this role.'), 403);
             }
         }
 
@@ -29,7 +31,7 @@ export class UserController {
         if (user.roleCode !== 'SA') {
             // Non-SA (BM) MUST use their own branch.
             if (body.branchId && body.branchId !== user.branchId?.toString()) {
-                return c.json({ status: 'error', message: 'Cannot assign users to other branches.' }, 403);
+                return c.json(new ApiResponse(403, null, 'Cannot assign users to other branches.'), 403);
             }
             targetBranchId = user.branchId;
         }
@@ -44,10 +46,7 @@ export class UserController {
         // Remove password from response
         const userJson = newUser.toJSON();
 
-        return c.json({
-            status: 'success',
-            data: userJson,
-        }, 201);
+        return c.json(new ApiResponse(201, userJson, 'User created successfully'), 201);
     }
 
     static async list(c: Context<{ Variables: Variables }>) {
@@ -60,7 +59,7 @@ export class UserController {
         if (user.roleCode !== 'SA') {
             if (!user.branchId) {
                 // If BM has no branchId, something is wrong with data, but safety check:
-                return c.json({ status: 'error', message: 'User not assigned to a branch.' }, 403);
+                throw new ApiError(403, 'User not assigned to a branch.');
             }
             query.branchId = user.branchId;
         } else {
@@ -85,16 +84,15 @@ export class UserController {
             User.countDocuments(query),
         ]);
 
-        return c.json({
-            status: 'success',
-            data: users,
+        return c.json(new ApiResponse(200, {
+            users,
             meta: {
                 total,
                 page: parseInt(page),
                 limit: parseInt(limit),
                 totalPages: Math.ceil(total / parseInt(limit)),
             }
-        });
+        }, 'Users retrieved successfully'));
     }
 
     static async get(c: Context<{ Variables: Variables }>) {
@@ -106,10 +104,10 @@ export class UserController {
             .populate('branchId', 'branchName');
 
         if (!fetchedUser) {
-            return c.json({ status: 'error', message: 'User not found' }, 404);
+            throw new ApiError(404, 'User not found');
         }
 
-        return c.json({ status: 'success', data: fetchedUser });
+        return c.json(new ApiResponse(200, fetchedUser, 'User details retrieved'));
     }
 
     static async update(c: Context<{ Variables: Variables }>) {
@@ -123,6 +121,14 @@ export class UserController {
             delete body.password;
         }
 
+        // PROTECTION: Prevent modifying SA user if current user is not SA
+        if (user.roleCode !== 'SA') {
+            const targetUser = await User.findById(id).populate('roleId');
+            if (targetUser && (targetUser.roleId as any).roleCode === 'SA') {
+                return c.json({ status: 'error', message: 'You are not authorized to modify a Super Admin user.' }, 403);
+            }
+        }
+
         const updatedUser = await User.findOneAndUpdate(
             { _id: id, tenantId: user.tenantId },
             { $set: body },
@@ -130,15 +136,23 @@ export class UserController {
         );
 
         if (!updatedUser) {
-            return c.json({ status: 'error', message: 'User not found' }, 404);
+            throw new ApiError(404, 'User not found');
         }
 
-        return c.json({ status: 'success', data: updatedUser });
+        return c.json(new ApiResponse(200, updatedUser, 'User updated successfully'));
     }
 
     static async delete(c: Context<{ Variables: Variables }>) {
         const user = c.get('user');
         const id = c.req.param('id');
+
+        // PROTECTION: Prevent deleting SA user if current user is not SA
+        if (user.roleCode !== 'SA') {
+            const targetUser = await User.findById(id).populate('roleId');
+            if (targetUser && (targetUser.roleId as any).roleCode === 'SA') {
+                return c.json(new ApiResponse(403, null, 'You are not authorized to delete a Super Admin user.'), 403);
+            }
+        }
 
         // Soft delete
         const deletedUser = await User.findOneAndUpdate(
@@ -148,9 +162,9 @@ export class UserController {
         );
 
         if (!deletedUser) {
-            return c.json({ status: 'error', message: 'User not found' }, 404);
+            throw new ApiError(404, 'User not found');
         }
 
-        return c.json({ status: 'success', message: 'User deactivated successfully' });
+        return c.json(new ApiResponse(200, null, 'User deactivated successfully'));
     }
 }

@@ -18,6 +18,14 @@ poRoutes.post(
     PurchaseOrderController.create
 );
 
+// List POs
+poRoutes.get(
+    '/',
+    branchMiddleware, // Allow filtering by branch
+    requirePermission('PO.VIEW'), // Ensure permission exists or use implicit
+    PurchaseOrderController.list
+);
+
 poRoutes.patch(
     '/:id/approve',
     branchMiddleware,
@@ -30,6 +38,27 @@ poRoutes.patch(
     branchMiddleware,
     requirePermission('PO.UPDATE'), // Assuming permission
     PurchaseOrderController.patchItemQuantity
+);
+
+poRoutes.patch(
+    '/:id',
+    branchMiddleware,
+    requirePermission('PO.UPDATE'),
+    PurchaseOrderController.update
+);
+
+poRoutes.patch(
+    '/:id/cancel',
+    branchMiddleware,
+    requirePermission('PO.CANCEL'), // Assuming permission
+    PurchaseOrderController.cancel
+);
+
+poRoutes.delete(
+    '/:id',
+    branchMiddleware,
+    requirePermission('PO.DELETE'), // Assuming permission
+    PurchaseOrderController.delete
 );
 
 export default poRoutes;

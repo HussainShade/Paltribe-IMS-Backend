@@ -12,6 +12,10 @@ export class RbacService {
 
         // Handle if role is populated object or just ID
         const roleId = role._id || role;
+
+        // Check for SA bypass if role object is available
+        if (role.roleCode === 'SA') return true;
+
         const permissions = await this.getPermissionsByRole(roleId);
         return permissions.includes(permissionCode);
     }

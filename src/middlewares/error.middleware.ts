@@ -1,27 +1,46 @@
 import { Context } from 'hono';
-import { AppError } from '../utils/errors';
+import { ApiError } from '../utils/ApiError';
+import { ApiResponse } from '../utils/ApiResponse';
 import { ZodError } from 'zod';
+import { StatusCode } from 'hono/utils/http-status';
 
 export const errorHandler = (err: Error, c: Context) => {
-    console.error(err);
+    // console.error(err); // Optional logging
 
-    if (err instanceof AppError) {
-        return c.json({
-            status: err.status,
-            message: err.message,
-        }, err.statusCode as any);
+    if (err instanceof ApiError) {
+        return c.json(
+            new ApiResponse(
+                err.statusCode,
+                null,
+                err.message
+            ),
+            err.statusCode as any
+        );
     }
 
     if (err instanceof ZodError) {
-        return c.json({
-            status: 'fail',
-            message: 'Validation Error',
-            errors: err.issues
-        }, 400);
+        const validationErrors = err.issues.map(issue => ({
+            field: issue.path.join('.'),
+            message: issue.message
+        }));
+
+        return c.json(
+            new ApiResponse(
+                400,
+                { errors: validationErrors },
+                'Validation Error'
+            ),
+            400
+        );
     }
 
-    return c.json({
-        status: 'error',
-        message: 'Internal Server Error',
-    }, 500);
+    // Default Interal Server Error
+    return c.json(
+        new ApiResponse(
+            500 as StatusCode,
+            null,
+            'Internal Server Error'
+        ),
+        500
+    );
 };

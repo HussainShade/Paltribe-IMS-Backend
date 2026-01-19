@@ -1,13 +1,16 @@
 import { Context } from 'hono';
 import { GRNService } from '../services';
 import { GRN } from '../models';
+import { ApiError } from '../utils/ApiError';
+import { ApiResponse } from '../utils/ApiResponse';
 
 export class GRNController {
     static async create(c: Context) {
         const user = c.get('user');
         const data = await c.req.json();
-        const grn = await GRNService.createGRN(data, user);
-        return c.json({ status: 'success', data: grn }, 201);
+        const branchId = c.get('branchId');
+        const grn = await GRNService.createGRN(data, user, branchId);
+        return c.json(new ApiResponse(201, grn, 'GRN created successfully'), 201);
     }
 
     static async list(c: Context) {
@@ -32,15 +35,14 @@ export class GRNController {
             GRN.countDocuments(query),
         ]);
 
-        return c.json({
-            status: 'success',
-            data: grns,
+        return c.json(new ApiResponse(200, {
+            grns,
             meta: {
                 total,
                 page: parseInt(page),
                 limit: parseInt(limit),
                 totalPages: Math.ceil(total / parseInt(limit)),
             }
-        });
+        }, 'GRNs retrieved successfully'));
     }
 }

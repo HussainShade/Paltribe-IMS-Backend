@@ -1,5 +1,7 @@
 import { Context } from 'hono';
-import { AuthService } from '../services';
+import { AuthService } from '../services/auth.service';
+import { ApiError } from '../utils/ApiError';
+import { ApiResponse } from '../utils/ApiResponse';
 import { setCookie } from 'hono/cookie';
 
 export class AuthController {
@@ -21,15 +23,12 @@ export class AuthController {
             maxAge: 7 * 24 * 60 * 60, // 7 days
         });
 
-        return c.json({
-            status: 'success',
-            data: {
-                user: result.user,
-                permissions: result.permissions,
-                accessToken: result.tokens.accessToken,
-                refreshToken: result.tokens.refreshToken,
-            }
-        });
+        return c.json(new ApiResponse(200, {
+            user: result.user,
+            permissions: result.permissions,
+            accessToken: result.tokens.accessToken,
+            refreshToken: result.tokens.refreshToken,
+        }, 'Login successful'));
     }
 
     static async refreshToken(c: Context) {

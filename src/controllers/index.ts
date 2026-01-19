@@ -8,3 +8,4 @@ export * from './audit-log.controller';
 export * from './branch.controller';
 export * from './item.controller';
 export * from './category.controller';
+export * from './work-area.controller';
