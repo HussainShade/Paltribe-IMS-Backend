@@ -173,7 +173,7 @@
 - **API**: `GET/POST /items`
 - **Fields**:
     - Code, Name, HSN Code
-    - Category (Dropdown), Sub Category (Dropdown)
+    - Category (Dropdown)
     - Ledger (Text), Classification (Text)
     - UOM (Dropdown)
     - Unit Cost, Tax Rate

@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export enum PurchaseOrderStatus {
   OPEN = 'OPEN',
+  DRAFT = 'DRAFT',
   APPROVED = 'APPROVED',
   CLOSED = 'CLOSED',
   CANCELLED = 'CANCELLED',
@@ -11,6 +12,7 @@ export interface IPurchaseOrder extends Document {
   poId: mongoose.Types.ObjectId;
   tenantId: mongoose.Types.ObjectId;
   branchId: mongoose.Types.ObjectId;
+  prNo?: string;
   vendorId: mongoose.Types.ObjectId;
   createdBy: mongoose.Types.ObjectId;
   approvedBy?: mongoose.Types.ObjectId | null;
@@ -32,7 +34,7 @@ const PurchaseOrderSchema = new Schema<IPurchaseOrder>(
     approvedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     poDate: { type: Date, default: Date.now },
     deliveryDate: { type: Date, default: null },
-    status: { type: String, enum: Object.values(PurchaseOrderStatus), default: PurchaseOrderStatus.OPEN },
+    status: { type: String, enum: Object.values(PurchaseOrderStatus), default: PurchaseOrderStatus.DRAFT },
     totalAmount: { type: Number, min: 0, default: 0 },
   },
   {

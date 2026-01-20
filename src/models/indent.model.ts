@@ -7,6 +7,7 @@ export enum IndentStatus {
   REJECTED = 'REJECTED',
   CANCELLED = 'CANCELLED',
   ISSUED = 'ISSUED',
+  PARTIALLY_ISSUED = 'PARTIALLY_ISSUED',
 }
 
 export interface IIndent extends Document {
@@ -16,6 +17,8 @@ export interface IIndent extends Document {
   workAreaId: mongoose.Types.ObjectId;
   createdBy: mongoose.Types.ObjectId;
   indentDate: Date;
+  remarks: string;
+  entryType: string;
   status: IndentStatus;
   createdAt: Date;
   updatedAt: Date;

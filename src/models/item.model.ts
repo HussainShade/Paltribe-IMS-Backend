@@ -9,13 +9,25 @@ export interface IItem extends Document {
   itemId: mongoose.Types.ObjectId;
   tenantId: mongoose.Types.ObjectId;
   categoryId: mongoose.Types.ObjectId;
-  // subCategoryId: mongoose.Types.ObjectId; // Removed
+  subCategoryId?: mongoose.Types.ObjectId;
   itemCode: string;
   itemName: string;
   hsnCode?: string | null;
+  ledger?: string;
+  classification?: string;
   inventoryUom: string;
   unitCost: number;
   taxRate: number;
+  yield?: number;
+  weight?: number;
+  leadTime?: number;
+  packageDetails?: {
+    name?: string;
+    brand?: string;
+    qty?: number;
+    price?: number;
+    parLevel?: number;
+  }[];
   status: ItemStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -25,7 +37,7 @@ const ItemSchema = new Schema<IItem>(
   {
     tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
     categoryId: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
-    subCategoryId: { type: Schema.Types.ObjectId, ref: 'SubCategory', default: null }, // Assuming SubCategory model exists or will exist? Or just reference to Category? App flow says "Sub category". I'll assume it's nice to have.
+    subCategoryId: { type: Schema.Types.ObjectId, ref: 'Category', default: null },
     ledger: { type: String, default: null },
     classification: { type: String, default: null },
     itemCode: { type: String, required: true, uppercase: true },
@@ -69,7 +81,7 @@ ItemSchema.set('toJSON', {
 ItemSchema.index({ tenantId: 1, itemCode: 1 }, { unique: true });
 ItemSchema.index({ tenantId: 1, status: 1 });
 ItemSchema.index({ tenantId: 1, categoryId: 1 });
-// ItemSchema.index({ tenantId: 1, subCategoryId: 1 });
+ItemSchema.index({ tenantId: 1, subCategoryId: 1 });
 ItemSchema.index({ tenantId: 1, itemName: 1 });
 
 export const Item: Model<IItem> = mongoose.model<IItem>('Item', ItemSchema);

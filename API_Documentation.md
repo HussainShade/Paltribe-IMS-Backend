@@ -143,7 +143,6 @@ To test the entire system manually after running `npm run seed`, follow this ord
     "taxRate": 5,
     "ledger": "General Ledger",
     "classification": "Vegetable",
-    "subCategoryId": "<SubCategoryID>",
     "yield": 95,
     "weight": 1000,
     "leadTime": 2,

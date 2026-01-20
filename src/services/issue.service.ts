@@ -53,14 +53,14 @@ export class IssueService {
             }
 
             // Check if all items fully issued?
-            // const allItems = await IndentItem.find({ indentId: data.indentId }).session(session);
-            // const allIssued = allItems.every(i => i.pendingQty === 0);
-            // if (allIssued) {
-            //     indent.status = IndentStatus.ISSUED;
-            //     await indent.save({ session });
-            // }
-            // Docs say: "After Issue -> Status: ISSUED". Assuming 1 issue = ISSUED status for simplicity unless partial logic is strict.
-            indent.status = IndentStatus.ISSUED;
+            const allItems = await IndentItem.find({ indentId: data.indentId }).session(session);
+            const anyPending = allItems.some((i: any) => i.pendingQty > 0);
+
+            if (anyPending) {
+                indent.status = IndentStatus.PARTIALLY_ISSUED;
+            } else {
+                indent.status = IndentStatus.ISSUED;
+            }
             await indent.save({ session });
 
             await session.commitTransaction();

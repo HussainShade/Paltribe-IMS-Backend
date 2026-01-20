@@ -15,7 +15,7 @@ export class PurchaseOrderService {
                 vendorId: data.vendorId,
                 createdBy: user._id,
                 deliveryDate: data.deliveryDate,
-                status: PurchaseOrderStatus.OPEN,
+                status: data.status || PurchaseOrderStatus.OPEN, // Allow DRAFT
                 totalAmount: 0 // Will update
             }], { session });
 
@@ -40,6 +40,79 @@ export class PurchaseOrderService {
 
             await session.commitTransaction();
             return po[0];
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
+        }
+    }
+
+    static async createPOFromIndentItems(data: { vendorId: string, indentItemIds: string[], deliveryDate?: Date }, user: any, branchId: string) {
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            // 1. Fetch Indent Items
+            const { IndentItem, Item, ProcurementStatus } = await import('../models');
+
+            const indentItems = await IndentItem.find({
+                _id: { $in: data.indentItemIds },
+                procurementStatus: ProcurementStatus.PENDING
+            }).populate('itemId').session(session);
+
+            if (indentItems.length !== data.indentItemIds.length) {
+                throw new ApiError(400, 'Some indent items not found or already in PO');
+            }
+
+            // 2. Create PO (DRAFT)
+            const po = await PurchaseOrder.create([{
+                tenantId: user.tenantId,
+                branchId: branchId,
+                vendorId: data.vendorId,
+                createdBy: user._id,
+                deliveryDate: data.deliveryDate,
+                status: PurchaseOrderStatus.DRAFT,
+                totalAmount: 0
+            }], { session });
+
+            // 3. Create PO Items and Calculate Total
+            let totalAmount = 0;
+            const poItemsToCreate = indentItems.map((ii: any) => {
+                const item = ii.itemId; // Populated
+                const unitCost = item.unitCost || 0;
+                const taxRate = item.taxRate || 0;
+                const quantity = ii.pendingQty;
+                const totalPrice = (quantity * unitCost) * (1 + taxRate / 100);
+
+                totalAmount += totalPrice;
+
+                return {
+                    poId: po[0]._id,
+                    indentItemId: ii._id,
+                    itemId: item._id,
+                    quantity: quantity,
+                    unitCost: unitCost,
+                    taxRate: taxRate,
+                    totalPrice: totalPrice
+                };
+            });
+
+            await PurchaseOrderItem.insertMany(poItemsToCreate, { session });
+
+            // 4. Update Indent Items Status
+            await IndentItem.updateMany(
+                { _id: { $in: data.indentItemIds } },
+                { $set: { procurementStatus: ProcurementStatus.IN_PO } },
+                { session }
+            );
+
+            // 5. Save PO Total
+            po[0].totalAmount = totalAmount;
+            await po[0].save({ session });
+
+            await session.commitTransaction();
+            return po[0];
+
         } catch (error) {
             await session.abortTransaction();
             throw error;

@@ -3,6 +3,7 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 export interface IPurchaseOrderItem extends Document {
   poItemId: mongoose.Types.ObjectId;
   poId: mongoose.Types.ObjectId;
+  indentItemId?: mongoose.Types.ObjectId;
   itemId: mongoose.Types.ObjectId;
   quantity: number;
   unitCost: number;
@@ -15,6 +16,7 @@ export interface IPurchaseOrderItem extends Document {
 const PurchaseOrderItemSchema = new Schema<IPurchaseOrderItem>(
   {
     poId: { type: Schema.Types.ObjectId, ref: 'PurchaseOrder', required: true },
+    indentItemId: { type: Schema.Types.ObjectId, ref: 'IndentItem', default: null },
     itemId: { type: Schema.Types.ObjectId, ref: 'Item', required: true },
     quantity: { type: Number, required: true, min: 0.01 },
     unitCost: { type: Number, required: true, min: 0 },
@@ -43,6 +45,7 @@ PurchaseOrderItemSchema.set('toJSON', {
 
 PurchaseOrderItemSchema.index({ poId: 1, itemId: 1 });
 PurchaseOrderItemSchema.index({ poId: 1 });
+PurchaseOrderItemSchema.index({ indentItemId: 1 });
 PurchaseOrderItemSchema.index({ itemId: 1 });
 
 export const PurchaseOrderItem: Model<IPurchaseOrderItem> = mongoose.model<IPurchaseOrderItem>('PurchaseOrderItem', PurchaseOrderItemSchema);

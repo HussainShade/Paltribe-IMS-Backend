@@ -66,4 +66,36 @@ export class IndentService {
         await indent.save();
         return indent;
     }
+
+    static async getProcurementPool(user: any, filters: any = {}) {
+        // IndentItem does not have tenantId, filtering must happen via Indent lookup
+        const query: any = {
+            pendingQty: { $gt: 0 },
+            procurementStatus: 'PENDING'
+        };
+
+        // TODO: Filter by categoryId require lookup or aggregation.
+        // For now, let's fetch items and populate.
+
+        const items = await IndentItem.find(query)
+            .populate({
+                path: 'indentId',
+                match: {
+                    status: { $in: [IndentStatus.APPROVED, IndentStatus.PARTIALLY_ISSUED] },
+                    tenantId: user.tenantId
+                }
+            })
+            .populate('itemId');
+
+        // Filter out items where indentId is null (because match failed or indent deleted)
+        const validItems = items.filter(item => item.indentId);
+
+        // Filter by category if requested
+        let result = validItems;
+        if (filters.categoryId) {
+            result = result.filter((item: any) => item.itemId.categoryId.toString() === filters.categoryId);
+        }
+
+        return result;
+    }
 }

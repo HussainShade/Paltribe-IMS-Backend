@@ -91,6 +91,7 @@ async function runAllTests() {
         // --- 2. MASTER DATA (CRUD) ---
         console.log('\n--- [2. MASTER DATA] ---');
 
+
         // Work Area
         let workArea = await WorkArea.findOne({ tenantId: tenant._id });
         if (!workArea) {
@@ -105,6 +106,7 @@ async function runAllTests() {
             const waList = await fetchJson(`${BASE_URL}/work-areas`, { headers });
             console.log(`✅ Work Areas Listed: ${waList.data.length}`);
         }
+        if (!workArea) throw new Error('Failed to retrieve or create workArea.');
         context.workAreaId = workArea._id || (workArea as any).id;
 
         // Item
@@ -132,6 +134,7 @@ async function runAllTests() {
             const items = await fetchJson(`${BASE_URL}/items`, { headers });
             console.log(`✅ Items Listed: ${items.data.items.length}`);
         }
+        if (!item) throw new Error('Failed to retrieve or create item.');
         context.itemId = item._id || (item as any).id;
         context.vendorId = vendor._id.toString();
         context.branchId = branch._id.toString();

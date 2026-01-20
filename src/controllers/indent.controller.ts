@@ -75,4 +75,11 @@ export class IndentController {
         const issue = await IssueService.createIssue(data, user, branchId);
         return c.json(new ApiResponse(201, issue, 'Issue created successfully'), 201);
     }
+
+    static async getProcurementPool(c: Context) {
+        const user = c.get('user');
+        const { categoryId } = c.req.query();
+        const items = await IndentService.getProcurementPool(user, { categoryId });
+        return c.json(new ApiResponse(200, items, 'Procurement pool retrieved successfully'));
+    }
 }

@@ -16,6 +16,19 @@ export class PurchaseOrderController {
         return c.json(new ApiResponse(201, po, 'Purchase Order created successfully'), 201);
     }
 
+    static async createFromPool(c: Context) {
+        const user = c.get('user');
+        const data = await c.req.json();
+        const branchId = c.get('branchId'); // From branchMiddleware
+
+        if (!data.vendorId || !data.indentItemIds || !Array.isArray(data.indentItemIds)) {
+            throw new ApiError(400, 'Vendor ID and List of Indent Item IDs are required');
+        }
+
+        const po = await PurchaseOrderService.createPOFromIndentItems(data, user, branchId);
+        return c.json(new ApiResponse(201, po, 'Draft PO created successfully'), 201);
+    }
+
     static async list(c: Context) {
         const user = c.get('user');
         const { page = '1', limit = '10', status } = c.req.query();

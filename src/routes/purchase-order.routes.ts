@@ -18,6 +18,14 @@ poRoutes.post(
     PurchaseOrderController.create
 );
 
+poRoutes.post(
+    '/from-pool',
+    branchMiddleware,
+    requirePermission('PO.CREATE'),
+    // Validator omitted for now, controller validates
+    PurchaseOrderController.createFromPool
+);
+
 // List POs
 poRoutes.get(
     '/',

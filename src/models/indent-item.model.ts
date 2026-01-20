@@ -1,5 +1,11 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
+export enum ProcurementStatus {
+  PENDING = 'PENDING',
+  IN_PO = 'IN_PO',
+  PROCURED = 'PROCURED',
+}
+
 export interface IIndentItem extends Document {
   indentItemId: mongoose.Types.ObjectId;
   indentId: mongoose.Types.ObjectId;
@@ -7,6 +13,7 @@ export interface IIndentItem extends Document {
   requestedQty: number;
   issuedQty: number;
   pendingQty: number;
+  procurementStatus: ProcurementStatus;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -18,6 +25,7 @@ const IndentItemSchema = new Schema<IIndentItem>(
     requestedQty: { type: Number, required: true, min: 0.01 },
     issuedQty: { type: Number, min: 0, default: 0 },
     pendingQty: { type: Number, min: 0 },
+    procurementStatus: { type: String, enum: Object.values(ProcurementStatus), default: ProcurementStatus.PENDING },
   },
   {
     timestamps: true,

@@ -25,6 +25,13 @@ indentRoutes.get(
     IndentController.list
 );
 
+indentRoutes.get(
+    '/procurement-pool',
+    branchMiddleware,
+    requirePermission('INDENT.VIEW'), // Or specialized permission?
+    IndentController.getProcurementPool
+);
+
 indentRoutes.patch(
     '/:id/approve',
     branchMiddleware,
