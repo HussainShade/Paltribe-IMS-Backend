@@ -2,10 +2,11 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IIssue extends Document {
   issueId: mongoose.Types.ObjectId;
-  tenantId: mongoose.Types.ObjectId;
+  tenantId: string;
   branchId: mongoose.Types.ObjectId;
   indentId: mongoose.Types.ObjectId;
   issuedBy: mongoose.Types.ObjectId;
+  remarks?: string;
   issueDate: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -13,10 +14,11 @@ export interface IIssue extends Document {
 
 const IssueSchema = new Schema<IIssue>(
   {
-    tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
+    tenantId: { type: String, ref: 'Tenant', required: true },
     branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
     indentId: { type: Schema.Types.ObjectId, ref: 'Indent', required: true },
     issuedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    remarks: { type: String },
     issueDate: { type: Date, default: Date.now },
   },
   {

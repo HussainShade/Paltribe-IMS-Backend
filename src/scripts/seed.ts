@@ -1,42 +1,58 @@
+import dns from 'dns';
 import mongoose from 'mongoose';
+
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 import { connectDB, disconnectDB } from '../config/database';
 import {
     Tenant, TenantStatus,
     Role, RoleCode,
     Permission,
     RolePermission,
-    User, UserStatus
+    User, UserStatus,
+    Branch, BranchStatus
 } from '../models';
 
 const seed = async () => {
-    console.log('🌱 Starting Seed...');
+    console.log('🌱 Starting Fresh Seed...');
     await connectDB();
 
     try {
-        // 1. Clean Database
-        console.log('🧹 Cleaning existing data...');
-        await User.deleteMany({});
-        await RolePermission.deleteMany({});
-        await Permission.deleteMany({});
-        await Role.deleteMany({});
-        await Tenant.deleteMany({});
+        // 1. Clean Database (Truncate all collections)
+        console.log('🧹 Cleaning all existing collections...');
+        const collections = await mongoose.connection.db?.collections();
+        if (collections) {
+            for (const collection of collections) {
+                console.log(`   - Clearing: ${collection.collectionName}`);
+                await collection.deleteMany({});
+            }
+        }
 
         // 2. Create Tenant
         console.log('🏢 Creating Tenant...');
+        const generateTenantId = () => {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let result = '';
+            for (let i = 0; i < 6; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        };
+
+        const tenantId = generateTenantId();
         const tenant = await Tenant.create({
-            tenantName: 'Demo Tenant',
+            _id: tenantId,
+            tenantName: 'Hipalz Enterprise',
             status: TenantStatus.ACTIVE,
         });
 
-
-        // 3. Create Branch
-        console.log('🏢 Creating Branch...');
-        const mainBranch = await import('../models').then(m => m.Branch.create({
+        // 3. Create Headquarters Branch
+        console.log('🏢 Creating Headquarters Branch...');
+        const mainBranch = await Branch.create({
             tenantId: tenant._id,
-            branchName: 'Main Branch',
-            location: 'Headquarters',
-            status: 'ACTIVE' // Using string manually or import enum
-        }));
+            branchName: 'Headquarters',
+            location: 'Sainikpuri',
+            status: BranchStatus.ACTIVE
+        });
 
         // 4. Create Roles
         console.log('👑 Creating Roles...');
@@ -50,7 +66,22 @@ const seed = async () => {
             roleName: 'Branch Manager',
         });
 
-        // 4. Create Permissions
+        await Role.create({
+            roleCode: RoleCode.PE,
+            roleName: 'Purchase Executive',
+        });
+
+        await Role.create({
+            roleCode: RoleCode.SM,
+            roleName: 'Store Manager',
+        });
+
+        await Role.create({
+            roleCode: RoleCode.IR,
+            roleName: 'Indent Requester',
+        });
+
+        // 5. Create Permissions
         console.log('🔒 Creating Permissions...');
         const permissionsList = [
             // User
@@ -96,70 +127,48 @@ const seed = async () => {
             }))
         );
 
-        // 5. Assign Permissions to Roles
-        console.log('🔗 Linking Permissions to Roles...');
-
-        // Full access for SA
+        // 6. Assign All Permissions to SA Role
+        console.log('🔗 Linking Permissions to SA Role...');
         const saPermissions = createdPermissions.map(p => ({
             roleId: saRole._id,
             permissionId: p._id,
         }));
         await RolePermission.insertMany(saPermissions);
 
-        // Limited access for BM 
-        const bmPermissionCodes = [
-            'USER.CREATE', 'USER.VIEW', 'USER.UPDATE', 'USER.DELETE',
-            'LOGS.VIEW',
-            'BRANCH.VIEW', // To see own branch details? Or selection?
-            'CATEGORY.CREATE', 'CATEGORY.VIEW',
-            // Inherit PE, SM, IR permissions
-            'PO.CREATE', 'PO.UPDATE', 'PO.APPROVE',
-            'GRN.CREATE',
-            'INDENT.CREATE', 'INDENT.APPROVE', 'INDENT.ISSUE',
-            'ITEM.VIEW', 'ITEM.CREATE', 'ITEM.UPDATE', 'ITEM.DELETE', // Assuming BM manages Items
-            'VENDOR.VIEW', 'VENDOR.CREATE', 'VENDOR.UPDATE', 'VENDOR.DELETE'
-        ];
-
-        const bmPermissionsToAssign = createdPermissions.filter(p => bmPermissionCodes.includes(p.permissionCode));
-        const bmRolePermissions = bmPermissionsToAssign.map(p => ({
-            roleId: bmRole._id,
-            permissionId: p._id,
-        }));
-        await RolePermission.insertMany(bmRolePermissions);
-
-        // 6. Create Super Admin User
+        // 7. Create Super Admin User
         console.log('👤 Creating Super Admin User...');
-        const passwordHash = await Bun.password.hash('password123'); // Default password
+        const passwordHash = await Bun.password.hash('password123');
 
         const saUser = await User.create({
             tenantId: tenant._id,
             roleId: saRole._id,
-            name: 'Paltribe Admin',
-            email: 'admin@paltribe.com',
+            name: 'Hipalz Admin',
+            email: 'admin@hipalz.com',
             passwordHash: passwordHash,
             status: UserStatus.ACTIVE,
-        });
-
-        console.log('👤 Creating Branch Manager User...');
-        const bmUser = await User.create({
-            tenantId: tenant._id,
+            // Link to the Headquarters branch by default
             branchId: mainBranch._id,
-            roleId: bmRole._id,
-            name: 'Branch Manager',
-            email: 'manager@paltribe.com',
-            passwordHash: passwordHash,
-            status: UserStatus.ACTIVE,
+            branches: [{
+                branchId: mainBranch._id,
+                roleId: saRole._id
+            }]
         });
 
         console.log('\n✅ Database Seeded Successfully!');
         console.log('-------------------------------------------');
-        console.log('🔑 Credentials & Roles:');
-        console.log(`   Tenant ID:  ${tenant._id}`);
-        console.log(`   SA Role ID: ${saRole._id}`);
-        console.log(`   BM Role ID: ${bmRole._id}`);
+        console.log('� SYSTEM DETAILS:');
+        console.log(`   Tenant ID:      ${tenant._id}`);
+        console.log(`   Tenant Name:    ${tenant.tenantName}`);
         console.log('-------------------------------------------');
-        console.log(`   Admin User: admin@paltribe.com / password123`);
-        console.log(`   Manager User: manager@paltribe.com / password123`);
+        console.log('🏢 BRANCH DETAILS:');
+        console.log(`   Branch Name:    ${mainBranch.branchName}`);
+        console.log(`   Branch ID:      ${mainBranch._id}`);
+        console.log('-------------------------------------------');
+        console.log('👤 USER DETAILS:');
+        console.log(`   Name:           ${saUser.name}`);
+        console.log(`   Email:          ${saUser.email}`);
+        console.log(`   Password:       password123`);
+        console.log(`   Role:           Super Admin`);
         console.log('-------------------------------------------');
 
     } catch (error) {

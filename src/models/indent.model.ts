@@ -12,7 +12,7 @@ export enum IndentStatus {
 
 export interface IIndent extends Document {
   indentId: mongoose.Types.ObjectId;
-  tenantId: mongoose.Types.ObjectId;
+  tenantId: string;
   branchId: mongoose.Types.ObjectId;
   workAreaId: mongoose.Types.ObjectId;
   createdBy: mongoose.Types.ObjectId;
@@ -20,13 +20,14 @@ export interface IIndent extends Document {
   remarks: string;
   entryType: string;
   status: IndentStatus;
+  isPoRaised: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
 const IndentSchema = new Schema<IIndent>(
   {
-    tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
+    tenantId: { type: String, ref: 'Tenant', required: true },
     branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
     workAreaId: { type: Schema.Types.ObjectId, ref: 'WorkArea', required: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
@@ -34,6 +35,7 @@ const IndentSchema = new Schema<IIndent>(
     remarks: { type: String, default: '' },
     entryType: { type: String, enum: ['OPEN', 'PACKAGE'], default: 'OPEN' },
     status: { type: String, enum: Object.values(IndentStatus), default: IndentStatus.OPEN },
+    isPoRaised: { type: Boolean, default: false },
   },
   {
     timestamps: true,

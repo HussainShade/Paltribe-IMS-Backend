@@ -4,6 +4,7 @@ import { UserController } from '../controllers';
 import { createUserSchema, updateUserSchema } from '../validators';
 import { authMiddleware, requirePermission } from '../middlewares';
 import { Variables } from '../types';
+import { UserPermissionOverrideController } from '../controllers/user-permission-override.controller';
 
 const userRoutes = new Hono<{ Variables: Variables }>();
 
@@ -26,6 +27,25 @@ userRoutes.get(
     '/:id',
     requirePermission('USER.VIEW'),
     UserController.get
+);
+
+// Permission Overrides (per user, per branch)
+userRoutes.get(
+    '/:id/permission-overrides',
+    requirePermission('USER.VIEW'),
+    UserPermissionOverrideController.listForUser
+);
+
+userRoutes.post(
+    '/:id/permission-overrides',
+    requirePermission('USER.UPDATE'),
+    UserPermissionOverrideController.upsertForUser
+);
+
+userRoutes.delete(
+    '/:id/permission-overrides',
+    requirePermission('USER.UPDATE'),
+    UserPermissionOverrideController.deleteForUser
 );
 
 userRoutes.patch(

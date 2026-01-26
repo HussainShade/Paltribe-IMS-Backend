@@ -11,6 +11,20 @@ export const createItemSchema = z.object({
     unitCost: z.number().min(0).default(0),
     taxRate: z.number().min(0).max(100).default(0),
     status: z.nativeEnum(ItemStatus).default(ItemStatus.ACTIVE),
+
+    // Optional Fields
+    ledger: z.string().optional(),
+    classification: z.string().optional(),
+    yield: z.number().optional(),
+    weight: z.number().optional(),
+    leadTime: z.number().optional(),
+    packageDetails: z.array(z.object({
+        name: z.string().optional(),
+        brand: z.string().optional(),
+        qty: z.number().optional(),
+        price: z.number().optional(),
+        parLevel: z.number().optional()
+    })).optional(),
 });
 
 export const updateItemSchema = z.object({

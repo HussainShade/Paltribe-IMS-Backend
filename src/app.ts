@@ -12,7 +12,10 @@ const app = new Hono();
 // Global Middlewares
 app.use('*', logger());
 app.use('*', prettyJSON());
-app.use('*', cors());
+app.use('*', cors({
+    origin: 'http://localhost:5173',
+    credentials: true,
+}));
 app.use('*', auditLogMiddleware);
 
 app.route('/api/v1', api);

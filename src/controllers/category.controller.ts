@@ -8,49 +8,28 @@ export class CategoryController {
     static async create(c: Context) {
         const user = c.get('user');
 
-        // Ensure user has a branch (BM/SA scenarios needed clarity, but user rules say "limited to their branch")
-        // If SA creates, they might need to select a branch, but for now assuming execution context has branchId or SA is restricted/handled?
-        // User request: "created by SA & BM limited to their branch".
-        // If SA has no branchId in context, this might fail or be global? 
-        // Based on logic, we demand branchId.
+        // Standardized Branch Resolution
+        let branchId = c.get('branchId');
 
-        if (!user.branchId && user.roleCode !== 'SA') {
-            return c.json(new ApiResponse(400, null, 'Branch context required'), 400);
+        // If SA and no branch in context/token, try header (fallback, though middleware usually handles this)
+        if (!branchId && user.roleCode === 'SA') {
+            branchId = c.req.header('x-branch-id');
         }
 
-        let branchId = user.branchId;
-        if (user.roleCode === 'SA') {
-            const requestedBranch = c.req.header('x-branch-id');
-            if (requestedBranch) {
-                branchId = requestedBranch;
-            } else {
-                // If SA doesn't provide branch (Global Category? Or Default?)
-                // If categories MUST be branch specific:
-                // return c.json({ status: 'error', message: 'Branch context required for SA' }, 400);
-
-                // Assuming Categories CAN be global (null branchId) if created by SA without context?
-                // Or maybe SA is creating for a specific branch.
-                // Re-reading user request: "Category should be linked to Branch ID"
-                // So let's enforce it if we want strict scoping, or allow null for "Global".
-                // I'll allow null for SA (Global) but prefer x-branch-id.
-                // Actually, let's inject it into body so Service uses it.
-            }
+        // Strict Requirement: Categories MUST belong to a branch
+        if (!branchId) {
+            return c.json(new ApiResponse(400, null, 'Branch context is required to create a category.'), 400);
         }
 
-        // Service Create expects data + user. 
-        // We should probably override/ensure branchId is passed to Service/Model.
         const body = await c.req.json();
-        const { name, status } = body; // Assuming name and status are in the body
-
-        // Explicitly set branchId in data passed to service
-        const data = { ...body, branchId: branchId };
+        const { name, status } = body;
 
         // Create Category
         const category = await Category.create({
-            tenantId: user.tenantId, // Always use user's tenant
+            tenantId: user.tenantId,
             name,
-            status,
-            branchId: branchId // Ensure branchId is passed to the model
+            status: status || 'ACTIVE',
+            branchId: branchId
         });
 
         return c.json(new ApiResponse(201, category, 'Category created successfully'), 201);

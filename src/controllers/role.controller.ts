@@ -18,8 +18,18 @@ export class RoleController {
             throw new ApiError(404, 'Role not found');
         }
 
+        // Convert string ID to ObjectId for query (Mongoose should handle this, but being explicit)
         const rolePermissions = await RolePermission.find({ roleId: id }).populate('permissionId');
-        const permissions = rolePermissions.map((rp: any) => rp.permissionId);
+        const permissions = rolePermissions.map((rp: any) => {
+            // Ensure permissionId is populated (could be ObjectId or populated object)
+            if (rp.permissionId && typeof rp.permissionId === 'object') {
+                return rp.permissionId;
+            }
+            return null;
+        }).filter(Boolean); // Remove any null values
+
+        // Debug log
+        console.log(`[RoleController] Role ${id} (${role.roleCode}) has ${permissions.length} permissions`);
 
         return c.json(new ApiResponse(200, {
             ...role.toJSON(),

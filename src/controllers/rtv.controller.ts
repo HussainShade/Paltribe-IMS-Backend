@@ -9,9 +9,9 @@ export class RTVController {
         const user = c.get('user');
         const data = await c.req.json();
 
-        // Basic validation
-        if (!data.grnId || !data.itemId || !data.returnedQty || data.returnedQty <= 0) {
-            throw new ApiError(400, 'Invalid RTV data');
+        // Basic validation for multi-item RTV
+        if (!data.grnId || !data.items || !Array.isArray(data.items) || data.items.length === 0) {
+            throw new ApiError(400, 'Invalid RTV data: items array required');
         }
 
         const branchId = c.get('branchId');
@@ -36,7 +36,7 @@ export class RTVController {
 
         if (grnId) filters.grnId = grnId;
 
-        const rtvs = await RTVService.list(user.tenantId, filters);
-        return c.json(new ApiResponse(200, rtvs, 'RTVs retrieved successfully'));
+        const rtvs = await RTVService.list(user.tenantId.toString(), filters);
+        return c.json(new ApiResponse(200, { rtvs }, 'RTVs retrieved successfully'));
     }
 }

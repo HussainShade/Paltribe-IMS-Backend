@@ -5,11 +5,19 @@ export enum UserStatus {
   INACTIVE = 'INACTIVE',
 }
 
+export interface IUserBranch {
+  branchId: mongoose.Types.ObjectId;
+  roleId: mongoose.Types.ObjectId;
+  // Store overrides as a plain object so keys like "BRANCH.CREATE" are allowed
+  permissions?: Record<string, boolean>;
+}
+
 export interface IUser extends Document {
   userId: mongoose.Types.ObjectId;
-  tenantId: mongoose.Types.ObjectId;
-  branchId?: mongoose.Types.ObjectId | null;
-  roleId: mongoose.Types.ObjectId;
+  tenantId: string;
+  branchId?: mongoose.Types.ObjectId | null; // Default/Active Branch
+  roleId: mongoose.Types.ObjectId; // Default/Active Role
+  branches: IUserBranch[]; // Multi-branch access
   name: string;
   email: string;
   passwordHash: string;
@@ -20,9 +28,17 @@ export interface IUser extends Document {
 
 const UserSchema = new Schema<IUser>(
   {
-    tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
+    tenantId: { type: String, ref: 'Tenant', required: true },
     branchId: { type: Schema.Types.ObjectId, ref: 'Branch', default: null },
     roleId: { type: Schema.Types.ObjectId, ref: 'Role', required: true },
+    branches: [
+      {
+        branchId: { type: Schema.Types.ObjectId, ref: 'Branch' },
+        roleId: { type: Schema.Types.ObjectId, ref: 'Role' },
+        // Use Mixed so we can store a plain object with arbitrary keys like "BRANCH.CREATE"
+        permissions: { type: Schema.Types.Mixed },
+      },
+    ],
     name: { type: String, required: true },
     email: { type: String, required: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },

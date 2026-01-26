@@ -5,8 +5,9 @@ export enum TenantStatus {
   INACTIVE = 'INACTIVE',
 }
 
-export interface ITenant extends Document {
-  tenantId: mongoose.Types.ObjectId;
+export interface ITenant extends Document<string> {
+  tenantId: string;
+  _id: string;
   tenantName: string;
   status: TenantStatus;
   createdAt: Date;
@@ -15,12 +16,14 @@ export interface ITenant extends Document {
 
 const TenantSchema = new Schema<ITenant>(
   {
+    _id: { type: String, required: true }, // Explicitly define _id as String
     tenantName: { type: String, required: true, unique: true },
     status: { type: String, enum: Object.values(TenantStatus), default: TenantStatus.ACTIVE },
   },
   {
     timestamps: true,
     collection: 'tenants',
+    _id: false, // Disable auto ObjectId generation
   }
 );
 

@@ -9,3 +9,6 @@ export * from './branch.controller';
 export * from './item.controller';
 export * from './category.controller';
 export * from './work-area.controller';
+export * from './role.controller';
+export * from './permission.controller';
+export * from './user-permission-override.controller';

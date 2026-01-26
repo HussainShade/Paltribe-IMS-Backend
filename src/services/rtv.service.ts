@@ -1,4 +1,4 @@
-import { RTV, GRN, GRNItem, InventoryStock } from '../models';
+import { RTV, GRN, GRNItem, InventoryStock, IRTV } from '../models';
 import { InventoryService } from './inventory.service';
 import mongoose from 'mongoose';
 import { ApiError } from '../utils/ApiError';
@@ -8,55 +8,55 @@ export class RTVService {
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
-            // 1. Validate GRN
+            // 1. Validate GRN (Once)
             const grn = await GRN.findOne({ _id: data.grnId, tenantId: user.tenantId }).session(session);
             if (!grn) throw new ApiError(404, 'GRN not found');
 
-            // 2. Validate Item in GRN
-            // We need to check if the item was actually received in this GRN and quantity matches
-            // However, GRNItem model stores item details.
-            // But wait, GRNItem is separate collection.
-            // Let's find the GRN Item record.
+            const createdRTVs: IRTV[] = [];
 
-            // Note: RTV Model assumes single item per RTV record based on schema?
-            // "itemId", "returnedQty". Yes, simplistic RTV model.
+            // Loop through items
+            for (const item of data.items) {
+                // ... validation ...
+                // Note: repeating validation code is fine, but ensure variable names are correct.
 
-            const grnItem = await GRNItem.findOne({ grnId: grn._id, itemId: data.itemId }).session(session);
-            if (!grnItem) throw new ApiError(400, 'Item not found in this GRN');
+                // 2. Validate Item in GRN
+                const grnItem = await GRNItem.findOne({ grnId: grn._id, itemId: item.itemId }).session(session);
+                if (!grnItem) throw new ApiError(400, `Item ${item.itemId} not found in this GRN`);
 
-            // Check if already returned?
-            // Need to sum up previous RTVs for this GRN Item to ensure we don't return more than received.
-            const previousRTVs = await RTV.find({ grnId: grn._id, itemId: data.itemId }).session(session);
-            const totalReturned = previousRTVs.reduce((sum, rtv) => sum + rtv.returnedQty, 0);
+                // Check if already returned?
+                const previousRTVs = await RTV.find({ grnId: grn._id, itemId: item.itemId }).session(session);
+                const totalReturned = previousRTVs.reduce((sum, rtv) => sum + rtv.returnedQty, 0);
 
-            if (totalReturned + data.returnedQty > grnItem.receivedQty) {
-                throw new ApiError(400, `Cannot return more than received quantity. Received: ${grnItem.receivedQty}, Already Returned: ${totalReturned}`);
+                if (totalReturned + item.returnedQty > grnItem.receivedQty) {
+                    throw new ApiError(400, `Cannot return more than received quantity for item ${item.itemId}`);
+                }
+
+                // 3. Create RTV Document
+                const rtvDocs = await RTV.create([{
+                    tenantId: user.tenantId,
+                    branchId: branchId,
+                    grnId: data.grnId,
+                    itemId: item.itemId,
+                    returnedQty: item.returnedQty,
+                    reason: item.reason,
+                    processedBy: user._id
+                }], { session });
+
+                createdRTVs.push(rtvDocs[0]);
+
+                // 4. Decrement Stock
+                await InventoryService.decrementStock(
+                    user.tenantId.toString(),
+                    branchId,
+                    grn.workAreaId.toString(),
+                    item.itemId,
+                    item.returnedQty,
+                    session
+                );
             }
 
-            // 3. Create RTV
-            const rtv = await RTV.create([{
-                tenantId: user.tenantId,
-                branchId: branchId,
-                grnId: data.grnId,
-                itemId: data.itemId,
-                returnedQty: data.returnedQty,
-                processedBy: user._id
-            }], { session });
-
-            // 4. Decrement Stock
-            // We need to know which WorkArea the GRN put the stock into.
-            // GRN model: "workAreaId"
-            await InventoryService.decrementStock(
-                user.tenantId.toString(),
-                branchId,
-                grn.workAreaId.toString(),
-                data.itemId,
-                data.returnedQty,
-                session
-            );
-
             await session.commitTransaction();
-            return rtv[0];
+            return createdRTVs;
         } catch (error) {
             await session.abortTransaction();
             throw error;

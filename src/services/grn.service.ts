@@ -75,4 +75,17 @@ export class GRNService {
             session.endSession();
         }
     }
+
+    static async getGRNById(grnId: string, user: any) {
+        const grn = await GRN.findOne({ _id: grnId, tenantId: user.tenantId })
+            .populate('poId', 'poNumber')
+            .populate('workAreaId', 'name')
+            .populate('createdBy', 'name');
+
+        if (!grn) throw new AppError('GRN not found', 404);
+
+        const items = await GRNItem.find({ grnId: grn._id }).populate('itemId', 'name code unit');
+
+        return { ...grn.toJSON(), items };
+    }
 }

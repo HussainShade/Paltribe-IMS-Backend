@@ -6,6 +6,8 @@ import { loginSchema, refreshTokenSchema } from '../validators';
 const authRoutes = new Hono();
 
 authRoutes.post('/login', zValidator('json', loginSchema), AuthController.login);
-authRoutes.post('/refresh', zValidator('json', refreshTokenSchema), AuthController.refreshToken);
+// Refresh token can come from body or cookie, so we handle validation in controller
+authRoutes.post('/refresh', AuthController.refreshToken);
+authRoutes.post('/logout', AuthController.logout);
 
 export default authRoutes;

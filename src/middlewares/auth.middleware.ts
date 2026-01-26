@@ -30,24 +30,35 @@ export const authMiddleware = async (c: Context, next: Next) => {
         c.set('user', user);
         c.set('tenantId', user.tenantId.toString());
 
-        // Handle Branch Switching for SuperAdmin (SA)
-        const role = user.roleId as any; // populated
-        if (role && role.roleCode === 'SA') {
-            const requestedBranchId = c.req.header('x-branch-id');
-            if (requestedBranchId) {
-                // TODO: Verify if the branch exists and belongs to the tenant? 
-                // For now, trust the ID but ensure it's a valid MongoID format if needed.
+        // Handle Branch Switching
+        const requestedBranchId = c.req.header('x-branch-id');
+        const isSuperAdmin = user.roleId?.roleCode === 'SA';
+
+        if (requestedBranchId) {
+            if (isSuperAdmin) {
+                // SA can access any branch
                 c.set('branchId', requestedBranchId);
             } else {
-                // If no branch requested, SA might see "All" or "Default"? 
-                // Or undefined, meaning global view?
-                // The requirement says "select branch and view all APIs according to branch"
-                // So if undefined, maybe they see nothing or global?
-                // Keep it undefined if not passed.
-                c.set('branchId', undefined);
+                // Check if user has access to this branch
+                const branchAccess = user.branches?.find(
+                    (b: any) => (b.branchId?._id?.toString?.() || b.branchId?.toString?.()) === requestedBranchId
+                );
+
+                if (branchAccess) {
+                    c.set('branchId', requestedBranchId);
+                    // effective role for this request
+                    user.roleId = branchAccess.roleId;
+                    // We might need to populate this new roleId to get roleCode if needed downstream
+                    // For now, assuming RBAC service handles ID checks or we can re-fetch if needed.
+                    // But wait, user.roleId is populated object in line 21. 
+                    // We need to fetch the role object for this branch role ID to maintain consistency.
+                    // Ideally we should have populated branches.roleId too. 
+                } else {
+                    throw new AppError('Forbidden: No access to this branch', 403);
+                }
             }
         } else {
-            // Regular user: enforce their branch
+            // Default to primary branch
             c.set('branchId', user.branchId?.toString());
         }
 

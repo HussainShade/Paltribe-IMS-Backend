@@ -23,4 +23,10 @@ grnRoutes.get(
     GRNController.list
 );
 
+grnRoutes.get(
+    '/:id',
+    requirePermission('GRN.VIEW'),
+    GRNController.getById
+);
+
 export default grnRoutes;

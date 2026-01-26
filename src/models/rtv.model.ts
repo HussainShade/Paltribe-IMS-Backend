@@ -2,11 +2,12 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IRTV extends Document {
   rtvId: mongoose.Types.ObjectId;
-  tenantId: mongoose.Types.ObjectId;
+  tenantId: string;
   branchId: mongoose.Types.ObjectId;
   grnId: mongoose.Types.ObjectId;
   itemId: mongoose.Types.ObjectId;
   returnedQty: number;
+  reason?: string;
   processedBy: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -14,11 +15,12 @@ export interface IRTV extends Document {
 
 const RTVSchema = new Schema<IRTV>(
   {
-    tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
+    tenantId: { type: String, ref: 'Tenant', required: true },
     branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
     grnId: { type: Schema.Types.ObjectId, ref: 'GRN', required: true },
     itemId: { type: Schema.Types.ObjectId, ref: 'Item', required: true },
     returnedQty: { type: Number, required: true, min: 0.01 },
+    reason: { type: String },
     processedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
   {

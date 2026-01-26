@@ -25,323 +25,144 @@ All API endpoints return a consistent JSON structure.
 }
 ```
 
-## 🧪 Sequential Testing Flow
-To test the entire system manually after running `npm run seed`, follow this order:
-1.  **Login** as Super Admin or Branch Manager (Credentials in Seed Output).
-2.  **Setup Masters**: Create **Work Areas**, **Categories**, **Vendors**.
-3.  **Create Items**: Create Items using the Categories.
-4.  **Procurement**: Create **PO** -> Approve PO -> Create **GRN** (Stock increases).
-5.  **Operations**: Check **Inventory** -> Create **Indent** -> Issue Stock (Stock decreases).
-6.  **Analyze**: Check **Dashboard**, **Reports**, and **Audit Logs**.
-
----
-
 ## 1. Authentication
-*Start here to get your Access Token.*
+*Public endpoints.*
 
 ### Login
 **POST** `/auth/login`
-**Response** includes `accessToken`. Use this token in the header `Authorization: Bearer <token>` for all subsequent requests.
-
 **Body**:
 ```json
-{
-    "tenantId": "<TenantID_from_Seed_Output>",
-    "email": "admin@paltribe.com",
-    "password": "password123"
-}
+{ "tenantId": "...", "email": "...", "password": "..." }
 ```
 
 ### Refresh Token
 **POST** `/auth/refresh`
-**Body**: `{"refreshToken": "..."}`
+**Body**:
+```json
+{ "refreshToken": "..." }
+```
 
 ---
 
-## 2. System Setup (Master Data)
-*Create these first as they are required for operations.*
+## 2. Master Data (System Setup)
+*Requires Authentication.*
 
 ### Branch Management
-*Required for Work Areas*
-
-#### Create Branch
-**POST** `/branches`
-```json
-{
-    "branchName": "Downtown Branch",
-    "location": "City Center",
-    "status": "ACTIVE"
-}
-```
-
-#### List Branches
-**GET** `/branches`
+**GET** `/branches` - List all branches
+**POST** `/branches` - Create new branch
+**PATCH** `/branches/:id` - Update branch details
 
 ### Work Area Management
-*Kitchens, Bars, Stores*
-
-#### Create Work Area
-**POST** `/work-areas`
-```json
-{
-    "name": "Main Kitchen",
-    "branchIds": ["<BranchID_from_Seed_Output>"],
-    "status": "ACTIVE"
-}
-```
-
-#### List Work Areas
-**GET** `/work-areas`
+**GET** `/work-areas` - List work areas
+**GET** `/work-areas/:id` - Get work area details
+**POST** `/work-areas` - Create work area
+**PUT** `/work-areas/:id` - Update work area
+**DELETE** `/work-areas/:id` - Delete work area
 
 ### Category Management
-*Food, Liquor, Consumables*
-
-#### Create Category
-**POST** `/categories`
-```json
-{
-    "name": "Vegetables",
-    "status": "ACTIVE"
-}
-```
-
-#### List Categories
-**GET** `/categories`
+**GET** `/categories` - List categories
+**POST** `/categories` - Create category
 
 ### Vendor Management
-*Suppliers*
-
-#### Create Vendor
-**POST** `/vendors`
-```json
-{
-    "vendorName": "Fresh Farms Ltd",
-    "gstNo": "GSTIN123",
-    "contactDetails": { "phone": "9999999999" }
-}
-```
-
-#### List Vendors
-**GET** `/vendors`
-
----
-
-## 3. Product Management
-*Requires Categories to exist.*
+**GET** `/vendors` - List vendors
+**GET** `/vendors/:id` - Get vendor details
+**POST** `/vendors` - Create vendor
+**PATCH** `/vendors/:id` - Update vendor
+**DELETE** `/vendors/:id` - Delete vendor
 
 ### Item Management
-
-#### Create Item
-**POST** `/items`
-```json
-{
-    "itemCode": "VEG-001",
-    "itemName": "Tomato",
-    "categoryId": "<CategoryID>",
-    "inventoryUom": "KG",
-    "unitCost": 40,
-    "taxRate": 5,
-    "ledger": "General Ledger",
-    "classification": "Vegetable",
-    "yield": 95,
-    "weight": 1000,
-    "leadTime": 2,
-    "packageDetails": [
-      { "name": "Box", "brand": "FarmFresh", "qty": 10, "price": 400, "parLevel": 5 }
-    ]
-}
-```
-
-#### List Items
-**GET** `/items`
+**GET** `/items` - List items
+**GET** `/items/:id` - Get item details
+**POST** `/items` - Create item
+**PATCH** `/items/:id` - Update item
+**DELETE** `/items/:id` - Delete item
 
 ---
 
-## 4. Procurement Cycle (Inbound)
-*Requires Vendors and Items.*
+## 3. Procurement (Inbound)
 
 ### Purchase Orders (PO)
-
-#### Create PO
-**POST** `/purchase-orders`
-```json
-{
-    "prNo": "PR-1001",
-    "vendorId": "<VendorID>",
-    "deliveryDate": "2024-12-31",
-    "items": [
-        { "itemId": "<ItemID>", "quantity": 100, "unitCost": 40, "taxRate": 5 }
-    ]
-}
-```
-
-#### List Pending POs
-**GET** `/purchase-orders?status=PENDING`
-
-#### Approve PO
-**PATCH** `/purchase-orders/:id/approve`
-Body: `{"status": "APPROVED"}`
+**GET** `/purchase-orders` - List POs (Filters: status, vendorId)
+**POST** `/purchase-orders` - Create PO manually
+**POST** `/purchase-orders/from-pool` - Create PO from Procurement Pool (Indents)
+**PATCH** `/purchase-orders/:id` - Update PO details
+**PATCH** `/purchase-orders/:id/approve` - Approve PO
+**PATCH** `/purchase-orders/:id/cancel` - Cancel PO
+**DELETE** `/purchase-orders/:id` - Delete PO
+**PATCH** `/purchase-orders/:id/items/:itemId` - Update specific item quantity in PO
 
 ### Goods Received Note (GRN)
-*Requires Approved PO and Work Area.*
-
-#### Create GRN
-**POST** `/grn`
-This action **increases stock**.
-```json
-{
-    "poId": "<Approved_PO_ID>",
-    "vendorInvoiceNo": "INV-2024-001",
-    "vendorInvoiceDate": "2024-12-30",
-    "workAreaId": "<WorkAreaID>",
-    "items": [
-        { "itemId": "<ItemID>", "receivedQty": 100, "unitCost": 40, "taxAmount": 100 }
-    ]
-}
-```
-
-#### List GRNs
-**GET** `/grn`
+**GET** `/grn` - List GRNs
+**POST** `/grn` - Create GRN (Increases Stock)
 
 ---
 
-## 5. Operations (Internal)
-*Requires Stock (from GRN).*
-
-### Inventory (Live Stock)
-**GET** `/inventory`
-Check if stock increased after GRN.
+## 4. Operations (Internal)
 
 ### Indents (Internal Requests)
-
-#### Create Indent
-**POST** `/indents`
-```json
-{
-    "workAreaId": "<WorkAreaID>",
-    "remarks": "Urgent Requirement",
-    "entryType": "OPEN",
-    "items": [ { "itemId": "<ItemID>", "requestedQty": 10 } ]
-}
-```
-
-#### List Indents
-**GET** `/indents`
-
-#### Issue Indent (Move Stock)
-**POST** `/indents/issue`
-This action **decreases stock**.
-```json
-{
-    "indentId": "<IndentID>",
-    "items": [ { "itemId": "<ItemID>", "issuedQty": 10 } ]
-}
-```
-
----
-
-## 6. Dashboards & Reports
-*View the results of your operations.*
-
-### Dashboard
-**GET** `/dashboard/stats`
-(Total Stock Value, Pending POs, etc.)
-
-### Reports
-**GET** `/reports/live-stock`
-**GET** `/reports/po-status`
-**GET** `/reports/detailed-grn`
-*(See list of all 12 reports in previous section)*
-
----
-
-## 7. User & Role Administration
-*Manage access and users.*
-
-### User Management
-**POST** `/users`
-**GET** `/users`
-
-### Role Management
-**GET** `/roles`
-**GET** `/roles/:id`
-**PUT** `/roles/:id/permissions` (Update Permissions)
-
-### Permission Management
-**GET** `/permissions`
-
-### Profile
-**GET** `/profile/me`
-**PUT** `/profile/change-password`
-
-
-
-### Audit Logs
-**GET** `/audit-logs`
-
----
-
-## 8. Returns & Special Orders (New Modules)
-
-### Returns (RTV)
-*Return items to vendor from a specific GRN.*
-
-#### Create RTV
-**POST** `/rtv`
-This action **decreases stock**.
-```json
-{
-    "grnId": "<GRN_ID>",
-    "itemId": "<ITEM_ID>",
-    "returnedQty": 10,
-    "reason": "Damaged goods"
-}
-```
-
-#### List RTVs
-**GET** `/rtv`
-
-### Special Orders
-*Ad-hoc orders.*
-
-#### Create Special Order
-**POST** `/special-orders`
-```json
-{
-    "vendorId": "<VENDOR_ID>",
-    "items": [...],
-    "deliveryDate": "2024-12-31"
-}
-```
-
-#### List Special Orders
-**GET** `/special-orders`
-
-#### Approve/Close
-**PATCH** `/special-orders/:id/approve`
-**PATCH** `/special-orders/:id/close`
-
----
-
-## 9. Extended CRUD Operations
-
-### Purchase Orders
-**PATCH** `/purchase-orders/:id` (Update fields like `deliveryDate`)
-**PATCH** `/purchase-orders/:id/cancel` (Cancel OPEN PO)
-**DELETE** `/purchase-orders/:id` (Delete OPEN PO)
-
-### Indents
-**PATCH** `/indents/:id/reject` (Reject OPEN Indent)
-**PATCH** `/indents/:id/cancel` (Cancel OPEN Indent)
+**GET** `/indents` - List indents
+**post** `/indents` - Create indent
+**GET** `/indents/procurement-pool` - List items pending for purchase (Approved Indents)
+**PATCH** `/indents/:id/approve` - Approve indent
+**PATCH** `/indents/:id/reject` - Reject indent
+**PATCH** `/indents/:id/cancel` - Cancel indent
+**POST** `/indents/issue` - Issue stock against indent (Decreases Stock)
 
 ### Inventory
-**POST** `/inventory/adjust` (Manual Stock Adjustment)
-Actions: Positive quantity adds stock, negative removes stock. Use for audit corrections.
-```json
-{
-    "itemId": "<ITEM_ID>",
-    "workAreaId": "<WORK_AREA_ID>",
-    "quantity": -5,
-    "reason": "Spillage"
-}
-```
+**GET** `/inventory` - List current stock
+**POST** `/inventory/adjust` - Manual stock adjustment
+
+### Returns (RTV)
+**GET** `/rtv` - List Returns to Vendor
+**POST** `/rtv` - Create RTV (Decreases Stock)
+
+### Special Orders
+**GET** `/special-orders` - List special orders
+**POST** `/special-orders` - Create special order
+**PATCH** `/special-orders/:id/approve` - Approve special order
+**PATCH** `/special-orders/:id/close` - Close special order
+
+---
+
+## 5. Administration
+
+### User Management
+**GET** `/users` - List users
+**GET** `/users/:id` - Get user details
+**POST** `/users` - Create user
+**PATCH** `/users/:id` - Update user
+**DELETE** `/users/:id` - Delete user
+
+### Roles & Permissions
+**GET** `/roles` - List roles
+**GET** `/roles/:id` - Get role details
+**PUT** `/roles/:id/permissions` - Update role permissions
+**GET** `/permissions` - List all available permissions
+
+### Audit Logs
+**GET** `/audit-logs` - View system audit logs
+
+### Profile
+**GET** `/profile/me` - Get current user profile
+**PUT** `/profile/change-password` - Change password
+
+---
+
+## 6. Dashboard & Reports
+
+### Dashboard
+**GET** `/dashboard/stats` - Get key statistics
+
+### Reports
+**GET** `/reports/live-stock` - Current Stock Report
+**GET** `/reports/indent-issue` - Indent vs Issue Report
+**GET** `/reports/purchase-indent-consolidated` - Purchase vs Indent
+**GET** `/reports/po-status` - PO Status Report
+**GET** `/reports/rate-variance` - Rate Variance Report
+**GET** `/reports/manual-closing` - Manual Closing Report
+**GET** `/reports/invoice-summary` - Invoice Summary
+**GET** `/reports/store-variance` - Store Variance
+**GET** `/reports/detailed-grn` - Detailed GRN Report
+**GET** `/reports/flr` - Food & Liquor Ratio (FLR)
+**GET** `/reports/supplier-item-purchase` - Supplier Item Purchase
+**GET** `/reports/supplier-purchase` - Supplier Purchase Summary

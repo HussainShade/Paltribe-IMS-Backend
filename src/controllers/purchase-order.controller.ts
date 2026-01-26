@@ -12,6 +12,10 @@ export class PurchaseOrderController {
         // But Service.createPO likely handles it.
         const branchId = c.get('branchId'); // From branchMiddleware
 
+        if (!branchId) {
+            throw new ApiError(400, 'Branch context required');
+        }
+
         const po = await PurchaseOrderService.createPO(data, user, branchId);
         return c.json(new ApiResponse(201, po, 'Purchase Order created successfully'), 201);
     }
@@ -31,22 +35,19 @@ export class PurchaseOrderController {
 
     static async list(c: Context) {
         const user = c.get('user');
-        const { page = '1', limit = '10', status } = c.req.query();
+        const { page = '1', limit = '10', status, type } = c.req.query();
 
         const query: any = { tenantId: user.tenantId };
 
-        // Branch Filtering
-        let branchId = user.branchId;
-        if (user.roleCode === 'SA' && !branchId) {
-            branchId = c.req.header('x-branch-id');
-        }
-
+        // Standardized Branch Filtering from Middleware
+        const branchId = c.get('branchId');
         if (branchId) {
             query.branchId = branchId;
         }
         // If SA and no branchId, show all? Yes ("Global View").
 
         if (status) query.status = status;
+        if (type) query.type = type;
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -79,6 +80,13 @@ export class PurchaseOrderController {
         const poId = c.req.param('id');
         const po = await PurchaseOrderService.approvePO(poId, user);
         return c.json(new ApiResponse(200, po, 'Purchase Order approved successfully'));
+    }
+
+    static async revert(c: Context) {
+        const user = c.get('user');
+        const poId = c.req.param('id');
+        const po = await PurchaseOrderService.revertPO(poId, user);
+        return c.json(new ApiResponse(200, po, 'Purchase Order reverted to PENDING successfully'));
     }
 
     static async update(c: Context) {
@@ -128,5 +136,11 @@ export class PurchaseOrderController {
         });
 
         return c.json(new ApiResponse(200, result, 'Item quantity updated successfully'));
+    }
+    static async getById(c: Context) {
+        const user = c.get('user');
+        const poId = c.req.param('id');
+        const po = await PurchaseOrderService.getPOById(poId, user);
+        return c.json(new ApiResponse(200, po, 'Purchase Order retrieved successfully'));
     }
 }

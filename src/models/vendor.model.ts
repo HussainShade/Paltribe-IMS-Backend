@@ -7,11 +7,13 @@ export enum VendorStatus {
 
 export interface IVendor extends Document {
   vendorId: mongoose.Types.ObjectId;
-  tenantId: mongoose.Types.ObjectId;
+  tenantId: string;
   vendorName: string;
   gstNo?: string | null;
   panNo?: string | null;
+  paymentTerms?: string;
   contactDetails: {
+    contactPerson?: string;
     phone?: string;
     email?: string;
     address?: string;
@@ -23,11 +25,13 @@ export interface IVendor extends Document {
 
 const VendorSchema = new Schema<IVendor>(
   {
-    tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
+    tenantId: { type: String, ref: 'Tenant', required: true, index: true },
     vendorName: { type: String, required: true },
     gstNo: { type: String, uppercase: true, default: null },
     panNo: { type: String, uppercase: true, default: null },
+    paymentTerms: { type: String, default: 'Net 30' },
     contactDetails: {
+      contactPerson: String,
       phone: String,
       email: { type: String, lowercase: true },
       address: String,

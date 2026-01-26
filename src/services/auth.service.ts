@@ -24,7 +24,7 @@ export class AuthService {
                 branchId: user.branchId
             },
             Config.JWT_SECRET,
-            { expiresIn: '15m' }
+            { expiresIn: '1h' } // Increased from 15m to 1h for better UX
         );
 
         const refreshToken = jwt.sign(
@@ -43,27 +43,31 @@ export class AuthService {
             throw new AppError('Tenant not found or inactive', 404);
         }
 
-        // 2. Check User in Tenant
+        // 2. Check User in Tenant (without status filter first to check status separately)
         const user = await User.findOne({
             tenantId,
-            email: email.toLowerCase(),
-            status: UserStatus.ACTIVE
+            email: email.toLowerCase()
         });
 
         if (!user) {
             throw new AppError('Invalid credentials', 401);
         }
 
-        // 3. Check Password
+        // 3. Check User Status
+        if (user.status !== UserStatus.ACTIVE) {
+            throw new AppError('Your account has been deactivated. Please contact your administrator.', 403);
+        }
+
+        // 4. Check Password
         const isMatch = await this.comparePassword(password, user.passwordHash);
         if (!isMatch) {
             throw new AppError('Invalid credentials', 401);
         }
 
-        // 4. Generate Tokens
+        // 5. Generate Tokens
         const tokens = this.generateTokens(user);
 
-        // 5. Get Permissions
+        // 6. Get Permissions
         const permissions = await RbacService.getPermissionsByRole(user.roleId);
 
         return { user, tokens, permissions };

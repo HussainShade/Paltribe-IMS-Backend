@@ -10,7 +10,12 @@ export class ReportController {
     // 1. Live Stock Store & Work Area
     static async getLiveStock(c: Context<{ Variables: Variables }>) {
         const user = c.get('user');
-        const { branchId, workAreaId } = c.req.query();
+        const contextBranchId = c.get('branchId');
+        let { branchId, workAreaId } = c.req.query();
+
+        // Strict enforcement
+        if (contextBranchId) branchId = contextBranchId;
+
         const query: any = { tenantId: user.tenantId };
 
         if (branchId) query.branchId = branchId;
@@ -27,7 +32,11 @@ export class ReportController {
     // 2. Indent Issue Report
     static async getIndentIssue(c: Context<{ Variables: Variables }>) {
         const user = c.get('user');
-        const { startDate, endDate, branchId } = c.req.query();
+        const contextBranchId = c.get('branchId');
+        let { startDate, endDate, branchId } = c.req.query();
+
+        if (contextBranchId) branchId = contextBranchId;
+
         const query: any = { tenantId: user.tenantId };
 
         if (branchId) query.branchId = branchId;
@@ -49,7 +58,10 @@ export class ReportController {
     // 3. Consolidated Purchase & Indent
     static async getPurchaseIndentConsolidated(c: Context<{ Variables: Variables }>) {
         const user = c.get('user');
-        const { startDate, endDate, branchId } = c.req.query();
+        const contextBranchId = c.get('branchId');
+        let { startDate, endDate, branchId } = c.req.query();
+
+        if (contextBranchId) branchId = contextBranchId;
 
         const dateFilter: any = {};
         if (startDate && endDate) {
@@ -76,7 +88,11 @@ export class ReportController {
     // 4. Purchase Order Status
     static async getPOStatus(c: Context<{ Variables: Variables }>) {
         const user = c.get('user');
-        const { status, startDate, endDate, branchId } = c.req.query();
+        const contextBranchId = c.get('branchId');
+        let { status, startDate, endDate, branchId } = c.req.query();
+
+        if (contextBranchId) branchId = contextBranchId;
+
         const query: any = { tenantId: user.tenantId };
 
         if (branchId) query.branchId = branchId;
@@ -95,13 +111,17 @@ export class ReportController {
     // 5. Rate Variance Report
     static async getRateVariance(c: Context<{ Variables: Variables }>) {
         const user = c.get('user');
+        const contextBranchId = c.get('branchId');
         const { startDate, endDate } = c.req.query();
 
+        const query: any = { tenantId: user.tenantId };
+        if (startDate && endDate) {
+            query.goodsReceivedDate = { $gte: new Date(startDate || 0), $lte: new Date(endDate || Date.now()) };
+        }
+        if (contextBranchId) query.branchId = contextBranchId;
+
         // Use virtual populate for items
-        const grns = await GRN.find({
-            tenantId: user.tenantId,
-            goodsReceivedDate: { $gte: new Date(startDate || 0), $lte: new Date(endDate || Date.now()) }
-        }).populate({ path: 'items', populate: { path: 'itemId' } });
+        const grns = await GRN.find(query).populate({ path: 'items', populate: { path: 'itemId' } });
 
         const varianceList: any[] = [];
 
@@ -133,10 +153,15 @@ export class ReportController {
     // 6. Manual Closing Report
     static async getManualClosing(c: Context<{ Variables: Variables }>) {
         const user = c.get('user');
-        const logs = await AuditLog.find({
+        const contextBranchId = c.get('branchId');
+
+        const query: any = {
             tenantId: user.tenantId,
             action: { $in: ['MANUAL_ADJUSTMENT', 'STOCK_UPDATE'] }
-        }).populate('performedBy', 'name');
+        };
+        if (contextBranchId) query.branchId = contextBranchId;
+
+        const logs = await AuditLog.find(query).populate('performedBy', 'name');
 
         return c.json(new ApiResponse(200, logs, 'Manual Closing Report fetched successfully'));
     }
@@ -144,8 +169,11 @@ export class ReportController {
     // 7. Invoice Summary Report
     static async getInvoiceSummary(c: Context<{ Variables: Variables }>) {
         const user = c.get('user');
+        const contextBranchId = c.get('branchId');
         const { startDate, endDate, vendorId } = c.req.query();
         const query: any = { tenantId: user.tenantId };
+
+        if (contextBranchId) query.branchId = contextBranchId;
 
         if (startDate && endDate) {
             query.goodsReceivedDate = { $gte: new Date(startDate), $lte: new Date(endDate) };
@@ -178,7 +206,11 @@ export class ReportController {
     // 9. Detailed GRN
     static async getDetailedGRN(c: Context<{ Variables: Variables }>) {
         const user = c.get('user');
-        const { branchId, startDate, endDate } = c.req.query();
+        const contextBranchId = c.get('branchId');
+        let { branchId, startDate, endDate } = c.req.query();
+
+        if (contextBranchId) branchId = contextBranchId;
+
         const query: any = { tenantId: user.tenantId };
 
         if (branchId) query.branchId = branchId;
@@ -202,8 +234,16 @@ export class ReportController {
     // 11. Supplier Item-wise Purchases
     static async getSupplierItemPurchase(c: Context<{ Variables: Variables }>) {
         const user = c.get('user');
+        const contextBranchId = c.get('branchId');
+
+        const match: any = { tenantId: user.tenantId };
+        if (contextBranchId) {
+            const mongoose = await import('mongoose');
+            match.branchId = new mongoose.Types.ObjectId(contextBranchId);
+        }
+
         const aggregation: any[] = [
-            { $match: { tenantId: user.tenantId } },
+            { $match: match },
             { $lookup: { from: 'purchase_orders', localField: 'poId', foreignField: '_id', as: 'po' } },
             { $unwind: '$po' },
             { $lookup: { from: 'vendors', localField: 'po.vendorId', foreignField: '_id', as: 'vendor' } },
@@ -229,8 +269,16 @@ export class ReportController {
     // 12. Supplier Wise Purchases
     static async getSupplierPurchase(c: Context<{ Variables: Variables }>) {
         const user = c.get('user');
+        const contextBranchId = c.get('branchId');
+
+        const match: any = { tenantId: user.tenantId };
+        if (contextBranchId) {
+            const mongoose = await import('mongoose');
+            match.branchId = new mongoose.Types.ObjectId(contextBranchId);
+        }
+
         const aggregation: any[] = [
-            { $match: { tenantId: user.tenantId } },
+            { $match: match },
             { $lookup: { from: 'purchase_orders', localField: 'poId', foreignField: '_id', as: 'po' } },
             { $unwind: '$po' },
             { $lookup: { from: 'vendors', localField: 'po.vendorId', foreignField: '_id', as: 'vendor' } },

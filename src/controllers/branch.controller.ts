@@ -34,17 +34,24 @@ export class BranchController {
         // If `user.branchId` is present, filtering is mandatory.
 
         let branches;
-        if (user.branchId) {
-            branches = await BranchService.list(user.tenantId);
-            // Wait, Service returns ALL. I should filter here or update Service.
-            // Better to update Service to accept optional branchId filter.
-            // But existing `BranchService.list` is simple.
-            // I will filter in memory or update service?
-            // Update service is better.
-            branches = branches.filter(b => b._id.toString() === user.branchId.toString());
+        if (user.roleCode === 'SA') {
+            branches = await Branch.find({ tenantId: user.tenantId });
             return c.json(new ApiResponse(200, branches, 'Branches fetched successfully'));
         } else {
-            const branches = await Branch.find({ tenantId: user.tenantId });
+            // Get all branch IDs user has access to
+            const branchIds = new Set<string>();
+            if (user.branchId) branchIds.add(user.branchId.toString());
+            if (user.branches && Array.isArray(user.branches)) {
+                user.branches.forEach((b: any) => {
+                    const id = b.branchId?._id || b.branchId;
+                    if (id) branchIds.add(id.toString());
+                });
+            }
+
+            branches = await Branch.find({
+                _id: { $in: Array.from(branchIds) },
+                tenantId: user.tenantId
+            });
             return c.json(new ApiResponse(200, branches, 'Branches fetched successfully'));
         }
     }
@@ -56,7 +63,7 @@ export class BranchController {
         const branch = await Branch.create({
             tenantId: user.tenantId,
             branchName,
-            location,
+            location: location || 'Main Office',
             status
         });
 

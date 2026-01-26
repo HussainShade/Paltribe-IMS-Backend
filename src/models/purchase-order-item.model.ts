@@ -4,7 +4,8 @@ export interface IPurchaseOrderItem extends Document {
   poItemId: mongoose.Types.ObjectId;
   poId: mongoose.Types.ObjectId;
   indentItemId?: mongoose.Types.ObjectId;
-  itemId: mongoose.Types.ObjectId;
+  itemId?: mongoose.Types.ObjectId | null;
+  name: string;
   quantity: number;
   unitCost: number;
   taxRate: number;
@@ -17,7 +18,8 @@ const PurchaseOrderItemSchema = new Schema<IPurchaseOrderItem>(
   {
     poId: { type: Schema.Types.ObjectId, ref: 'PurchaseOrder', required: true },
     indentItemId: { type: Schema.Types.ObjectId, ref: 'IndentItem', default: null },
-    itemId: { type: Schema.Types.ObjectId, ref: 'Item', required: true },
+    itemId: { type: Schema.Types.ObjectId, ref: 'Item', required: false, default: null },
+    name: { type: String, required: true }, // Snapshot or ad-hoc item name
     quantity: { type: Number, required: true, min: 0.01 },
     unitCost: { type: Number, required: true, min: 0 },
     taxRate: { type: Number, default: 0, min: 0, max: 100 },

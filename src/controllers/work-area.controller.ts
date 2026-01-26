@@ -10,7 +10,7 @@ export class WorkAreaController {
         try {
             const user = c.get('user');
             const body = await c.req.json();
-            const { name, branchIds, status } = body;
+            const { name, branchIds, status, type } = body;
 
             if (!name || !branchIds || !Array.isArray(branchIds) || branchIds.length === 0) {
                 throw new ApiError(400, 'Name and at least one Branch ID are required');
@@ -26,6 +26,7 @@ export class WorkAreaController {
                 tenantId: user.tenantId,
                 branchIds,
                 name,
+                type,
                 status
             });
 
@@ -42,36 +43,21 @@ export class WorkAreaController {
     static async list(c: Context) {
         try {
             const user = c.get('user');
-            const { branchId, status } = c.req.query();
+            const branchId = c.get('branchId');
 
-            // If user has branchId (e.g., BM), restrict or use it as default filter? 
-            // Requirement: "different branch counld have different workarea".
-            // If BM, they should arguably only see WorkAreas for their branch.
-            // If SA, they can filter by branchId.
+            const filters: any = {};
 
-            const filters: any = { status };
-
-            // If user is restricted to a branch (e.g. BM), force the filter.
-            // But typically filtering is done via Query Param for SA.
-            // If the user has a branchId, we could enforce it.
-            // However, WorkArea has `branchIds` array. 
-            // If I am a BM of Branch A, I should see WorkAreas that *include* Branch A.
-
-            if (user.branchId) {
-                filters.branchId = user.branchId;
-            } else if (branchId) {
+            // Strict Branch Enforcement via Middleware
+            if (branchId) {
                 filters.branchId = branchId;
             }
 
             const workAreas = await WorkAreaService.list(user.tenantId, filters);
-
-            return c.json(new ApiResponse(200, workAreas, 'Work Areas retrieved successfully'));
+            return c.json(new ApiResponse(200, { workAreas }, 'Work Areas retrieved successfully'));
         } catch (error: any) {
-            console.error('Get WorkAreas Error:', error);
-            if (error instanceof ApiError) {
-                return c.json(new ApiResponse(error.statusCode, null, error.message), error.statusCode as any);
-            }
-            return c.json(new ApiResponse(500, null, 'Internal server error'), 500);
+            console.error('List WorkAreas Error:', error);
+            const statusCode = error instanceof ApiError ? error.statusCode : 500;
+            return c.json(new ApiResponse(statusCode, null, error.message || 'Internal server error'), statusCode as any);
         }
     }
 

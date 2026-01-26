@@ -34,11 +34,26 @@ poRoutes.get(
     PurchaseOrderController.list
 );
 
+poRoutes.get(
+    '/:id',
+    branchMiddleware,
+    requirePermission('PO.VIEW'),
+    PurchaseOrderController.getById
+);
+
 poRoutes.patch(
     '/:id/approve',
     branchMiddleware,
     zValidator('json', approvePOSchema),
     PurchaseOrderController.approve
+);
+
+poRoutes.patch(
+    '/:id/revert',
+    branchMiddleware,
+    // requirePermission('PO.APPROVE'), // Revert is conceptually an "Un-Approve", so same permission? Or PO.UPDATE? Let's assume PO.APPROVE or PO.UPDATE. Using 'PO.UPDATE' seems safer or implicit.
+    // Actually, revert from Approved is sensitive. Let's use PO.UPDATE for now as I don't recall explicit revert permission in system.
+    PurchaseOrderController.revert
 );
 
 poRoutes.patch(

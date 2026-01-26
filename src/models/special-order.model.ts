@@ -8,7 +8,7 @@ export enum SpecialOrderStatus {
 
 export interface ISpecialOrder extends Document {
   soId: mongoose.Types.ObjectId;
-  tenantId: mongoose.Types.ObjectId;
+  tenantId: string;
   branchId: mongoose.Types.ObjectId;
   vendorId: mongoose.Types.ObjectId;
   createdBy: mongoose.Types.ObjectId;
@@ -23,7 +23,7 @@ export interface ISpecialOrder extends Document {
 
 const SpecialOrderSchema = new Schema<ISpecialOrder>(
   {
-    tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
+    tenantId: { type: String, ref: 'Tenant', required: true },
     branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
     vendorId: { type: Schema.Types.ObjectId, ref: 'Vendor', required: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },

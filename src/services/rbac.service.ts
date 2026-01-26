@@ -7,8 +7,16 @@ export class RbacService {
         return rolePermissions.map((rp) => (rp.permissionId as any).permissionCode);
     }
 
-    static async hasPermission(role: mongoose.Types.ObjectId | any, permissionCode: string): Promise<boolean> {
+    static async hasPermission(role: mongoose.Types.ObjectId | any, permissionCode: string, overrides?: Map<string, boolean> | Record<string, boolean>): Promise<boolean> {
         if (!role) return false;
+
+        // 1. Check for overrides first
+        if (overrides) {
+            const hasOverride = (overrides instanceof Map) ? overrides.has(permissionCode) : (permissionCode in overrides);
+            if (hasOverride) {
+                return (overrides instanceof Map) ? overrides.get(permissionCode) === true : (overrides as any)[permissionCode] === true;
+            }
+        }
 
         // Handle if role is populated object or just ID
         const roleId = role._id || role;

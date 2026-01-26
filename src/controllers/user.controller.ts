@@ -1,4 +1,5 @@
 import { Context } from 'hono';
+import mongoose from 'mongoose';
 import { User, UserStatus, Role } from '../models'; // Added Role import
 import { Variables } from '../types';
 import { ApiResponse } from '../utils/ApiResponse';
@@ -8,6 +9,16 @@ export class UserController {
     static async create(c: Context<{ Variables: Variables }>) {
         const user = c.get('user') as any; // Cast to any to access roleCode
         const body = await c.req.json();
+
+        // 1. Check if email already exists in this tenant
+        const existingUser = await User.findOne({
+            tenantId: user.tenantId,
+            email: body.email.toLowerCase()
+        });
+
+        if (existingUser) {
+            return c.json(new ApiResponse(400, null, 'A user with this email address already exists in your organization.'), 400);
+        }
 
         // RBAC Check: Restrict Role Creation for Non-SA
         if (user.roleCode !== 'SA') {
@@ -27,50 +38,186 @@ export class UserController {
         const hashedPassword = await Bun.password.hash(body.password);
 
         // Branch Enforcement
-        let targetBranchId = body.branchId;
+        let branches = body.branches || [];
+
         if (user.roleCode !== 'SA') {
-            // Non-SA (BM) MUST use their own branch.
-            if (body.branchId && body.branchId !== user.branchId?.toString()) {
-                return c.json(new ApiResponse(403, null, 'Cannot assign users to other branches.'), 403);
+            // Non-SA (BM) MUST use their own branch for the new user
+            // If they try to set branches, ensure all are their branch
+            if (branches.length > 0) {
+                const invalid = branches.some((b: any) => b.branchId !== user.branchId?.toString());
+                if (invalid) {
+                    return c.json(new ApiResponse(403, null, 'Cannot assign users to other branches.'), 403);
+                }
+            } else {
+                // Default to current branch if no branches provided
+                branches = [{ branchId: user.branchId, roleId: body.roleId }];
             }
-            targetBranchId = user.branchId;
         }
 
-        const newUser = await User.create({
-            ...body,
-            branchId: targetBranchId, // Enforce Branch
-            passwordHash: hashedPassword,
-            tenantId: user.tenantId,
-        });
+        // Determine primary branchId
+        const primaryBranchId = body.branchId || branches[0]?.branchId || null;
+        const primaryRoleId = body.roleId || branches[0]?.roleId;
 
-        // Remove password from response
-        const userJson = newUser.toJSON();
+        if (!primaryRoleId) {
+            return c.json(new ApiResponse(400, null, 'Role ID is required'), 400);
+        }
 
-        return c.json(new ApiResponse(201, userJson, 'User created successfully'), 201);
+        // Create user object, explicitly excluding password field
+        const { password, ...userData } = body;
+
+        try {
+            const newUser = await User.create({
+                ...userData,
+                branches,
+                branchId: primaryBranchId,
+                roleId: primaryRoleId,
+                passwordHash: hashedPassword,
+                tenantId: user.tenantId,
+            });
+
+            // Remove password from response
+            const userJson = newUser.toJSON();
+
+            return c.json(new ApiResponse(201, userJson, 'User created successfully'), 201);
+        } catch (error: any) {
+            console.error('User creation error:', error);
+            // Handle Mongoose validation errors
+            if (error.name === 'ValidationError') {
+                const validationErrors = Object.values(error.errors).map((err: any) => err.message).join(', ');
+                return c.json(new ApiResponse(400, null, `Validation Error: ${validationErrors}`), 400);
+            }
+            // Handle duplicate key errors
+            if (error.code === 11000) {
+                return c.json(new ApiResponse(400, null, 'A user with this email already exists'), 400);
+            }
+            throw error; // Re-throw to be handled by error middleware
+        }
+
     }
 
     static async list(c: Context<{ Variables: Variables }>) {
         const user = c.get('user') as any;
-        const { page = '1', limit = '10', status } = c.req.query();
+        const {
+            page = '1',
+            limit = '100',
+            status,
+            search,
+            branchId: filterBranchId,
+            roleId: filterRoleId,
+            sortBy = 'date'
+        } = c.req.query();
 
         const query: any = { tenantId: user.tenantId };
 
-        // strict Branch Filtering for Non-SA
-        if (user.roleCode !== 'SA') {
-            if (!user.branchId) {
-                // If BM has no branchId, something is wrong with data, but safety check:
-                throw new ApiError(403, 'User not assigned to a branch.');
+        // Branch Filtering Logic
+        // For SA: Rely strictly on query param (filterBranchId). If missing, show ALL (ignore header).
+        // For Others: Rely on query param OR header (context).
+        const isSuperAdmin = user.roleCode === 'SA';
+        const activeBranchId = isSuperAdmin ? filterBranchId : (filterBranchId || c.get('branchId'));
+
+        if (isSuperAdmin) {
+            // SA can see all users, but if a branch is selected, show users in that branch OR users with no branch (SA users)
+            if (activeBranchId) {
+                const branchIdObj = new mongoose.Types.ObjectId(activeBranchId);
+                query.$or = [
+                    { branchId: branchIdObj },
+                    { branchId: null }, // SuperAdmins with no branch
+                    { 'branches.branchId': branchIdObj } // Users with this branch in their branches array
+                ];
             }
-            query.branchId = user.branchId;
+            // If no branch selected, SA sees all users (no branch filter)
         } else {
-            // SA branch filtering
-            const contextBranchId = c.get('branchId');
-            if (contextBranchId) {
-                query.branchId = contextBranchId;
+            // Non-SA users: Filter by their accessible branches
+            const accessibleBranchIds: mongoose.Types.ObjectId[] = [];
+
+            // Add primary branch
+            if (user.branchId) {
+                const branchId = user.branchId instanceof mongoose.Types.ObjectId
+                    ? user.branchId
+                    : new mongoose.Types.ObjectId(user.branchId);
+                accessibleBranchIds.push(branchId);
+            }
+
+            // Add branches from branches array
+            if (user.branches && Array.isArray(user.branches)) {
+                user.branches.forEach((b: any) => {
+                    const branchId = b.branchId?._id || b.branchId;
+                    if (branchId) {
+                        const branchIdObj = branchId instanceof mongoose.Types.ObjectId
+                            ? branchId
+                            : new mongoose.Types.ObjectId(branchId);
+                        const exists = accessibleBranchIds.some(id => id.toString() === branchIdObj.toString());
+                        if (!exists) {
+                            accessibleBranchIds.push(branchIdObj);
+                        }
+                    }
+                });
+            }
+
+            if (activeBranchId) {
+                const activeBranchIdObj = new mongoose.Types.ObjectId(activeBranchId);
+                // If a specific branch is selected, filter by that branch
+                query.$or = [
+                    { branchId: activeBranchIdObj },
+                    { 'branches.branchId': activeBranchIdObj }
+                ];
+            } else if (accessibleBranchIds.length > 0) {
+                // Otherwise, show users in all accessible branches
+                query.$or = [
+                    { branchId: { $in: accessibleBranchIds } },
+                    { 'branches.branchId': { $in: accessibleBranchIds } }
+                ];
+            } else if (user.branchId) {
+                // Fallback to primary branch
+                const branchId = user.branchId instanceof mongoose.Types.ObjectId
+                    ? user.branchId
+                    : new mongoose.Types.ObjectId(user.branchId);
+                query.$or = [
+                    { branchId: branchId },
+                    { 'branches.branchId': branchId }
+                ];
             }
         }
 
+        // Status filter
         if (status) query.status = status;
+
+        // Role filter
+        if (filterRoleId) {
+            query.roleId = new mongoose.Types.ObjectId(filterRoleId);
+        }
+
+        // Search filter (name or email)
+        if (search) {
+            const searchRegex = { $regex: search, $options: 'i' };
+            // If there's already a $or in query (from branch filtering), we need to combine it with search
+            if (query.$or) {
+                const branchOr = query.$or;
+                delete query.$or;
+                query.$and = [
+                    { $or: branchOr },
+                    {
+                        $or: [
+                            { name: searchRegex },
+                            { email: searchRegex }
+                        ]
+                    }
+                ];
+            } else {
+                query.$or = [
+                    { name: searchRegex },
+                    { email: searchRegex }
+                ];
+            }
+        }
+
+        // Sort logic
+        let sortOption: any = { createdAt: -1 }; // Default: newest first
+        if (sortBy === 'name') {
+            sortOption = { name: 1 }; // Sort by name ascending
+        } else if (sortBy === 'date') {
+            sortOption = { createdAt: -1 }; // Sort by date descending (newest first)
+        }
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -78,9 +225,11 @@ export class UserController {
             User.find(query)
                 .skip(skip)
                 .limit(parseInt(limit))
-                .sort({ name: 1 }) // Default sort by name
+                .sort(sortOption)
                 .populate('roleId', 'roleName roleCode')
-                .populate('branchId', 'branchName'),
+                .populate('branchId', 'branchName')
+                .populate('branches.branchId', 'branchName')
+                .populate('branches.roleId', 'roleName roleCode'),
             User.countDocuments(query),
         ]);
 
@@ -101,7 +250,9 @@ export class UserController {
 
         const fetchedUser = await User.findOne({ _id: id, tenantId: user.tenantId })
             .populate('roleId', 'roleName roleCode')
-            .populate('branchId', 'branchName');
+            .populate('branchId', 'branchName')
+            .populate('branches.branchId', 'branchName')
+            .populate('branches.roleId', '_id roleName roleCode'); // Include _id so frontend can extract roleId
 
         if (!fetchedUser) {
             throw new ApiError(404, 'User not found');
@@ -121,6 +272,28 @@ export class UserController {
             delete body.password;
         }
 
+        // Normalize branches payload (convert string IDs to ObjectId)
+        if (body.branches && Array.isArray(body.branches)) {
+            body.branches = body.branches.map((b: any) => {
+                const branchId =
+                    b.branchId instanceof mongoose.Types.ObjectId
+                        ? b.branchId
+                        : new mongoose.Types.ObjectId(b.branchId);
+
+                const roleId =
+                    b.roleId instanceof mongoose.Types.ObjectId
+                        ? b.roleId
+                        : new mongoose.Types.ObjectId(b.roleId);
+
+                return {
+                    branchId,
+                    roleId,
+                    // permissions is stored as a plain object (Mixed) in schema; frontend already sends a Record<string, boolean>
+                    ...(b.permissions ? { permissions: b.permissions } : {}),
+                };
+            });
+        }
+
         // PROTECTION: Prevent modifying SA user if current user is not SA
         if (user.roleCode !== 'SA') {
             const targetUser = await User.findById(id).populate('roleId');
@@ -129,17 +302,22 @@ export class UserController {
             }
         }
 
-        const updatedUser = await User.findOneAndUpdate(
-            { _id: id, tenantId: user.tenantId },
-            { $set: body },
-            { new: true, runValidators: true }
-        );
+        try {
+            const updatedUser = await User.findOneAndUpdate(
+                { _id: id, tenantId: user.tenantId },
+                { $set: body },
+                { new: true, runValidators: true }
+            );
 
-        if (!updatedUser) {
-            throw new ApiError(404, 'User not found');
+            if (!updatedUser) {
+                throw new ApiError(404, 'User not found');
+            }
+
+            return c.json(new ApiResponse(200, updatedUser, 'User updated successfully'));
+        } catch (error: any) {
+            console.error('User update error:', error);
+            throw error;
         }
-
-        return c.json(new ApiResponse(200, updatedUser, 'User updated successfully'));
     }
 
     static async delete(c: Context<{ Variables: Variables }>) {

@@ -1,66 +1,52 @@
 import { Issue, Indent, IndentItem, IndentStatus } from '../models';
-import { InventoryService } from './inventory.service';
 import mongoose from 'mongoose';
 import { AppError } from '../utils/errors';
 
-export class IssueService {
+export class ApproveIndentService {
     static async createIssue(data: any, user: any, branchId: string) {
+        // LEGACY: usage of "createIssue" is actually "approveIndent" for workflow compatibility
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
             const indent = await Indent.findOne({ _id: data.indentId, tenantId: user.tenantId }).session(session);
             if (!indent) throw new AppError('Indent not found', 404);
-            if (indent.status !== IndentStatus.APPROVED) throw new AppError('Indent must be APPROVED', 400);
 
+            // Allow OPEN or PENDING to be Approved (Issued)
+            const allowedStatuses = ['OPEN', 'PENDING'];
+            if (indent.status === IndentStatus.APPROVED || indent.status === IndentStatus.ISSUED) {
+                // Idempotent success? Or throw?
+                throw new AppError(`Indent is already Approved/Issued.`, 400);
+            }
+
+            // Create "Issue" record as audit log for Approval
             const issue = await Issue.create([{
                 tenantId: user.tenantId,
                 branchId: branchId,
                 indentId: data.indentId,
                 issuedBy: user._id,
+                remarks: "Auto-generated Issue record for Approval Action"
             }], { session });
 
-            // If explicit items provided, iterate them. If not, issue all pending? 
-            // The validator I made had optional items. 
-            // Let's assume we iterate pending items if no items provided, OR strict "items" array required.
-            // I'll stick to: iterate items provided in payload to support partial issue.
-            // If items not provided, throw error? The validator allows optional.
-            // Let's robustly fetch indent items.
             const indentItems = await IndentItem.find({ indentId: data.indentId }).session(session);
 
-            const itemsToIssue = data.items || indentItems.map(ii => ({ itemId: ii.itemId.toString(), issuedQty: ii.pendingQty }));
+            // Full Approval Only
+            for (const indentItem of indentItems) {
+                // Set Approved Qty to Requested Qty
+                indentItem.approvedQty = indentItem.requestedQty;
+                // Ensure Issued Qty is 0 (as stock hasn't moved)
+                indentItem.issuedQty = 0;
 
-            for (const item of itemsToIssue) {
-                const indentItem = indentItems.find(ii => ii.itemId.toString() === item.itemId);
-                if (!indentItem) continue; // Skip invalid items
+                // Pending Qty remains Requested (since none issued)
+                indentItem.pendingQty = indentItem.requestedQty;
 
-                const qtyToIssue = Math.min(item.issuedQty, indentItem.pendingQty);
-                if (qtyToIssue <= 0) continue;
+                // Reset PO Qty tracking if clean slate needed? 
+                // No, keep existing if any.
 
-                // Decrement stock
-                await InventoryService.decrementStock(
-                    user.tenantId.toString(),
-                    branchId,
-                    indent.workAreaId.toString(),
-                    item.itemId,
-                    qtyToIssue,
-                    session
-                );
-
-                // Update IndentItem
-                indentItem.issuedQty = (indentItem.issuedQty || 0) + qtyToIssue;
-                indentItem.pendingQty = indentItem.requestedQty - indentItem.issuedQty;
                 await indentItem.save({ session });
             }
 
-            // Check if all items fully issued?
-            const allItems = await IndentItem.find({ indentId: data.indentId }).session(session);
-            const anyPending = allItems.some((i: any) => i.pendingQty > 0);
-
-            if (anyPending) {
-                indent.status = IndentStatus.PARTIALLY_ISSUED;
-            } else {
-                indent.status = IndentStatus.ISSUED;
-            }
+            // Set Status to ISSUED (Legacy Mapping for APPROVED)
+            indent.status = IndentStatus.ISSUED;
             await indent.save({ session });
 
             await session.commitTransaction();
@@ -73,3 +59,6 @@ export class IssueService {
         }
     }
 }
+
+// Backward Compatibility Export
+export const IssueService = ApproveIndentService;

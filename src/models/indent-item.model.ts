@@ -11,6 +11,8 @@ export interface IIndentItem extends Document {
   indentId: mongoose.Types.ObjectId;
   itemId: mongoose.Types.ObjectId;
   requestedQty: number;
+  approvedQty: number; // Qty approved by manager
+  poQty: number;       // Qty added to POs
   issuedQty: number;
   pendingQty: number;
   procurementStatus: ProcurementStatus;
@@ -23,6 +25,8 @@ const IndentItemSchema = new Schema<IIndentItem>(
     indentId: { type: Schema.Types.ObjectId, ref: 'Indent', required: true },
     itemId: { type: Schema.Types.ObjectId, ref: 'Item', required: true },
     requestedQty: { type: Number, required: true, min: 0.01 },
+    approvedQty: { type: Number, default: 0 },
+    poQty: { type: Number, default: 0 },
     issuedQty: { type: Number, min: 0, default: 0 },
     pendingQty: { type: Number, min: 0 },
     procurementStatus: { type: String, enum: Object.values(ProcurementStatus), default: ProcurementStatus.PENDING },
@@ -33,10 +37,18 @@ const IndentItemSchema = new Schema<IIndentItem>(
   }
 );
 
-// Auto-calculate pendingQty before saving
+// Auto-calculate pendingQty (Issuance) and initialize approvedQty
 IndentItemSchema.pre('save', function (this: any) {
   const doc = this as IIndentItem;
+  if (doc.isNew && !doc.approvedQty) {
+    doc.approvedQty = doc.requestedQty; // Default to requested if not specified
+  }
   doc.pendingQty = Math.max(0, doc.requestedQty - (doc.issuedQty || 0));
+});
+
+IndentItemSchema.virtual('pendingPoQty').get(function (this: IIndentItem) {
+  const approved = (this.approvedQty !== undefined && this.approvedQty !== null) ? this.approvedQty : this.requestedQty;
+  return Math.max(0, (approved || 0) - (this.poQty || 0));
 });
 
 IndentItemSchema.virtual('indentItemId').get(function (this: IIndentItem) {

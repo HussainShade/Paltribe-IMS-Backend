@@ -2,11 +2,12 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IGRN extends Document {
   grnId: mongoose.Types.ObjectId;
-  tenantId: mongoose.Types.ObjectId;
+  tenantId: string;
   branchId: mongoose.Types.ObjectId;
   poId?: mongoose.Types.ObjectId | null;
   soId?: mongoose.Types.ObjectId | null;
   vendorInvoiceNo: string;
+  vendorInvoiceDate: Date;
   goodsReceivedDate: Date;
   workAreaId: mongoose.Types.ObjectId;
   createdBy: mongoose.Types.ObjectId;
@@ -18,7 +19,7 @@ export interface IGRN extends Document {
 
 const GRNSchema = new Schema<IGRN>(
   {
-    tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
+    tenantId: { type: String, ref: 'Tenant', required: true },
     branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
     poId: { type: Schema.Types.ObjectId, ref: 'PurchaseOrder', default: null },
     soId: { type: Schema.Types.ObjectId, ref: 'SpecialOrder', default: null },

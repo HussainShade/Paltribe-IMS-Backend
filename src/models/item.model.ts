@@ -7,13 +7,12 @@ export enum ItemStatus {
 
 export interface IItem extends Document {
   itemId: mongoose.Types.ObjectId;
-  tenantId: mongoose.Types.ObjectId;
+  tenantId: string;
   categoryId: mongoose.Types.ObjectId;
   subCategoryId?: mongoose.Types.ObjectId;
   itemCode: string;
   itemName: string;
   hsnCode?: string | null;
-  ledger?: string;
   classification?: string;
   inventoryUom: string;
   unitCost: number;
@@ -35,10 +34,10 @@ export interface IItem extends Document {
 
 const ItemSchema = new Schema<IItem>(
   {
-    tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
+    tenantId: { type: String, ref: 'Tenant', required: true },
     categoryId: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
     subCategoryId: { type: Schema.Types.ObjectId, ref: 'Category', default: null },
-    ledger: { type: String, default: null },
+
     classification: { type: String, default: null },
     itemCode: { type: String, required: true, uppercase: true },
     itemName: { type: String, required: true },

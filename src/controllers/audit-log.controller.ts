@@ -1,6 +1,7 @@
 import { Context } from 'hono';
 import { AuditLogService } from '../services';
 import { Variables } from '../types';
+import { ApiResponse } from '../utils/ApiResponse';
 
 export class AuditLogController {
     static async list(c: Context<{ Variables: Variables }>) {
@@ -26,15 +27,14 @@ export class AuditLogController {
             { page: parseInt(page), limit: parseInt(limit) }
         );
 
-        return c.json({
-            status: 'success',
-            data: logs,
+        return c.json(new ApiResponse(200, {
+            logs,
             meta: {
                 total,
                 page: parseInt(page),
                 limit: parseInt(limit),
                 totalPages: Math.ceil(total / parseInt(limit)),
             }
-        });
+        }, 'Logs retrieved successfully'));
     }
 }

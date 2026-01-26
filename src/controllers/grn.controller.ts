@@ -45,4 +45,11 @@ export class GRNController {
             }
         }, 'GRNs retrieved successfully'));
     }
+
+    static async getById(c: Context) {
+        const user = c.get('user');
+        const grnId = c.req.param('id');
+        const grn = await GRNService.getGRNById(grnId, user);
+        return c.json(new ApiResponse(200, grn, 'GRN details retrieved successfully'));
+    }
 }

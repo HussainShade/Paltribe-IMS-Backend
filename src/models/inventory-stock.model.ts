@@ -2,7 +2,7 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IInventoryStock extends Document {
   stockId: mongoose.Types.ObjectId;
-  tenantId: mongoose.Types.ObjectId;
+  tenantId: string;
   itemId: mongoose.Types.ObjectId;
   branchId: mongoose.Types.ObjectId;
   workAreaId: mongoose.Types.ObjectId;
@@ -13,7 +13,7 @@ export interface IInventoryStock extends Document {
 
 const InventoryStockSchema = new Schema<IInventoryStock>(
   {
-    tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
+    tenantId: { type: String, ref: 'Tenant', required: true },
     itemId: { type: Schema.Types.ObjectId, ref: 'Item', required: true },
     branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
     workAreaId: { type: Schema.Types.ObjectId, ref: 'WorkArea', required: true },

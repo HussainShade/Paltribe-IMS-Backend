@@ -98,4 +98,106 @@ export class IndentService {
 
         return result;
     }
+
+    static async updateItem(itemId: string, data: any, user: any) {
+        // Ensure user has permission / owns the tenant
+        // We need to fetch item and verify indent status is OPEN
+        // Optimization: Find item, populate indent
+        const item = await IndentItem.findById(itemId).populate('indentId');
+        if (!item) throw new ApiError(404, 'Indent Item not found');
+
+        const indent: any = item.indentId;
+        if (indent.tenantId !== user.tenantId) throw new ApiError(403, 'Unauthorized');
+        if (indent.status !== IndentStatus.OPEN) throw new ApiError(400, 'Cannot update items in non-OPEN indent');
+
+        if (data.requestedQty) {
+            item.requestedQty = data.requestedQty;
+            item.pendingQty = data.requestedQty; // Reset pending to full requested (assuming none issued yet if OPEN)
+        }
+
+        await item.save();
+        return item;
+    }
+
+    static async deleteItem(itemId: string, user: any) {
+        const item = await IndentItem.findById(itemId).populate('indentId');
+        if (!item) throw new ApiError(404, 'Indent Item not found');
+
+        const indent: any = item.indentId;
+        if (indent.tenantId !== user.tenantId) throw new ApiError(403, 'Unauthorized');
+        if (indent.status !== IndentStatus.OPEN) throw new ApiError(400, 'Cannot delete items in non-OPEN indent');
+
+        await IndentItem.deleteOne({ _id: itemId });
+        return { success: true };
+    }
+    static async issueStock(indentId: string, sourceWorkAreaId: string, items: any[], user: any, branchId: string) {
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            const indent = await Indent.findOne({ _id: indentId, tenantId: user.tenantId }).session(session);
+            if (!indent) throw new ApiError(404, 'Indent not found');
+
+            // Allowed statuses for issue: APPROVED (shown as PENDING in UI), PARTIALLY_ISSUED, ISSUED (legacy/fallback)
+            const allowedStatuses = ['APPROVED', 'PARTIALLY_ISSUED', 'ISSUED'];
+            if (!allowedStatuses.includes(indent.status)) {
+                throw new ApiError(400, `Cannot issue stock for indent with status ${indent.status}`);
+            }
+
+            const InventoryService = (await import('./inventory.service')).InventoryService;
+
+            for (const itemData of items) {
+                const { indentItemId, issueQty } = itemData;
+                if (issueQty <= 0) continue;
+
+                const indentItem = await IndentItem.findOne({ _id: indentItemId, indentId }).session(session);
+                if (!indentItem) throw new ApiError(404, `Indent item ${indentItemId} not found`);
+
+                const pending = (indentItem.approvedQty || indentItem.requestedQty) - indentItem.issuedQty;
+                if (issueQty > pending) {
+                    throw new ApiError(400, `Issue quantity ${issueQty} exceeds pending quantity ${pending} for item ${indentItem.itemId}`);
+                }
+
+                // 1. Deduct Stock from source work area
+                await InventoryService.decrementStock(
+                    user.tenantId,
+                    branchId,
+                    sourceWorkAreaId,
+                    indentItem.itemId.toString(),
+                    issueQty,
+                    session
+                );
+
+                // 2. Update Indent Item quantities
+                indentItem.issuedQty += issueQty;
+                // pendingQty is auto-calculated in pre-save, but let's be explicit if needed or trust the hook
+                // Wait, hook uses requestedQty. We should check if approvedQty is used.
+                // IndentItem model: doc.pendingQty = Math.max(0, doc.requestedQty - (doc.issuedQty || 0));
+                // We should probably update the hook or just set it here.
+                indentItem.pendingQty = Math.max(0, (indentItem.approvedQty || indentItem.requestedQty) - indentItem.issuedQty);
+
+                await indentItem.save({ session });
+            }
+
+            // 3. Update Indent Status
+            const allItems = await IndentItem.find({ indentId }).session(session);
+            const totalApproved = allItems.reduce((sum, item) => sum + (item.approvedQty || item.requestedQty), 0);
+            const totalIssued = allItems.reduce((sum, item) => sum + item.issuedQty, 0);
+
+            if (totalIssued >= totalApproved) {
+                indent.status = IndentStatus.ISSUED;
+            } else if (totalIssued > 0) {
+                indent.status = IndentStatus.PARTIALLY_ISSUED;
+            }
+
+            await indent.save({ session });
+
+            await session.commitTransaction();
+            return indent;
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
+        }
+    }
 }

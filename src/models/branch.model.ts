@@ -7,7 +7,7 @@ export enum BranchStatus {
 
 export interface IBranch extends Document {
   branchId: mongoose.Types.ObjectId;
-  tenantId: mongoose.Types.ObjectId;
+  tenantId: string;
   branchName: string;
   location: string;
   status: BranchStatus;
@@ -17,7 +17,7 @@ export interface IBranch extends Document {
 
 const BranchSchema = new Schema<IBranch>(
   {
-    tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
+    tenantId: { type: String, ref: 'Tenant', required: true, index: true },
     branchName: { type: String, required: true },
     location: { type: String, required: true },
     status: { type: String, enum: Object.values(BranchStatus), default: BranchStatus.ACTIVE },

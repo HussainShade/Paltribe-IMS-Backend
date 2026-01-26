@@ -8,10 +8,12 @@ export class InventoryController {
     static async list(c: Context<{ Variables: Variables }>) {
         const user = c.get('user');
         const branchId = c.get('branchId');
+        const { workAreaId } = c.req.query();
         const query: any = {
             tenantId: user.tenantId,
             branchId: branchId
         };
+        if (workAreaId) query.workAreaId = workAreaId;
 
         const stock = await InventoryStock.find(query)
             .populate('itemId', 'itemName itemCode')

@@ -4,6 +4,7 @@ export * from './role.model';
 export * from './permission.model';
 export * from './role-permission.model';
 export * from './user.model';
+export * from './user-permission-override.model';
 export * from './vendor.model';
 export * from './purchase-order.model';
 export * from './purchase-order-item.model';

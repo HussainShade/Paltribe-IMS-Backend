@@ -7,7 +7,7 @@ export enum CategoryStatus {
 
 export interface ICategory extends Document {
     categoryId: mongoose.Types.ObjectId;
-    tenantId: mongoose.Types.ObjectId;
+    tenantId: string;
     branchId: mongoose.Types.ObjectId;
     name: string;
     status: CategoryStatus;
@@ -17,7 +17,7 @@ export interface ICategory extends Document {
 
 const CategorySchema = new Schema<ICategory>(
     {
-        tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
+        tenantId: { type: String, ref: 'Tenant', required: true, index: true },
         branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true, index: true },
         name: { type: String, required: true },
         status: { type: String, enum: Object.values(CategoryStatus), default: CategoryStatus.ACTIVE },

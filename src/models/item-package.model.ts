@@ -7,7 +7,7 @@ export enum ItemPackageStatus {
 
 export interface IItemPackage extends Document {
   packageId: mongoose.Types.ObjectId;
-  tenantId: mongoose.Types.ObjectId;
+  tenantId: string;
   itemId: mongoose.Types.ObjectId;
   packageName: string;
   brand?: string | null;
@@ -21,7 +21,7 @@ export interface IItemPackage extends Document {
 
 const ItemPackageSchema = new Schema<IItemPackage>(
   {
-    tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
+    tenantId: { type: String, ref: 'Tenant', required: true },
     itemId: { type: Schema.Types.ObjectId, ref: 'Item', required: true },
     packageName: { type: String, required: true },
     brand: { type: String, default: null },

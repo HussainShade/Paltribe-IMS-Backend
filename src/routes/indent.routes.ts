@@ -15,13 +15,18 @@ indentRoutes.post(
     branchMiddleware,
     requirePermission('INDENT.CREATE'),
     zValidator('json', createIndentSchema),
-    zValidator('json', createIndentSchema),
     IndentController.create
 );
 
 indentRoutes.get(
+    '/:id',
+    requirePermission('INDENT.VIEW'),
+    IndentController.get
+);
+
+indentRoutes.get(
     '/',
-    requirePermission('INDENT.VIEW'), // Assuming permission
+    requirePermission('INDENT.VIEW'),
     IndentController.list
 );
 
@@ -53,13 +58,26 @@ indentRoutes.patch(
     IndentController.cancel
 );
 
-// Issue
+// Indent Item Management
+indentRoutes.patch(
+    '/items/:itemId',
+    branchMiddleware,
+    requirePermission('INDENT.UPDATE'), // Assuming permission or fallback
+    IndentController.updateItem
+);
+
+indentRoutes.delete(
+    '/items/:itemId',
+    branchMiddleware,
+    requirePermission('INDENT.UPDATE'), // Assuming permission
+    IndentController.deleteItem
+);
+
 indentRoutes.post(
-    '/issue',
+    '/:id/issue-stock',
     branchMiddleware,
     requirePermission('INDENT.ISSUE'),
-    zValidator('json', issueIndentSchema),
-    IndentController.issue
+    IndentController.issueStock
 );
 
 export default indentRoutes;

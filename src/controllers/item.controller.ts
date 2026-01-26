@@ -9,7 +9,7 @@ export class ItemController {
         const user = c.get('user');
         const {
             itemCode, itemName, categoryId, subCategoryId, inventoryUom,
-            unitCost, taxRate, status, ledger, classification,
+            unitCost, taxRate, status, classification,
             yield: yieldVal, weight, leadTime, packageDetails
         } = await c.req.json();
 
@@ -27,7 +27,6 @@ export class ItemController {
             unitCost,
             taxRate,
             status,
-            ledger,
             classification,
             yield: yieldVal,
             weight,
@@ -98,12 +97,46 @@ export class ItemController {
                 .skip(skip)
                 .limit(parseInt(limit))
                 .sort({ itemName: 1 })
-                .populate('categoryId', 'name'),
+                .populate('categoryId', 'name')
+                .lean(), // Use lean for easier modification
             Item.countDocuments(query),
         ]);
 
+        // Aggregate Stock
+        const { InventoryStock } = await import('../models');
+        const itemIds = items.map(i => i._id);
+
+        // Build stock query
+        const stockQuery: any = {
+            tenantId: user.tenantId,
+            itemId: { $in: itemIds }
+        };
+
+        // If context is specific to a branch, only fetch stock for that branch
+        // Otherwise (Global view), we sum up stock across all branches potentially? 
+        // For now, let's respect appropriate branch context if available.
+        if (branchId) {
+            stockQuery.branchId = branchId;
+        }
+
+        const stocks = await InventoryStock.find(stockQuery);
+
+        // Map stock to items
+        const itemsWithStock = items.map((item: any) => {
+            // Filter stocks for this item
+            const itemStocks = stocks.filter(s => s.itemId.toString() === item._id.toString());
+            // Sum quantity
+            const totalStock = itemStocks.reduce((sum, s) => sum + s.quantityInStock, 0);
+
+            return {
+                ...item,
+                itemId: item._id, // Ensure itemId is present as virtuals don't run on lean()
+                stock: totalStock
+            };
+        });
+
         return c.json(new ApiResponse(200, {
-            items,
+            items: itemsWithStock,
             meta: {
                 total,
                 page: parseInt(page),

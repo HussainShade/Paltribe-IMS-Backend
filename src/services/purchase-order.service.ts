@@ -1,4 +1,4 @@
-import { PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus } from '../models';
+import { PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus, Indent, IndentItem } from '../models';
 import mongoose from 'mongoose';
 import { ApiError } from '../utils/ApiError';
 import { AuditLogService } from './audit-log.service';
@@ -12,10 +12,12 @@ export class PurchaseOrderService {
                 tenantId: user.tenantId,
                 branchId: branchId,
                 prNo: data.prNo || null,
-                vendorId: data.vendorId,
+                vendorId: data.vendorId || null,
+                vendorName: data.vendorName || null,
                 createdBy: user._id,
                 deliveryDate: data.deliveryDate,
-                status: data.status || PurchaseOrderStatus.OPEN, // Allow DRAFT
+                status: data.status || PurchaseOrderStatus.PENDING,
+                type: data.type || 'STANDARD',
                 totalAmount: 0 // Will update
             }], { session });
 
@@ -24,6 +26,7 @@ export class PurchaseOrderService {
                 const itemInfo = {
                     poId: po[0]._id,
                     itemId: item.itemId,
+                    name: item.name, // Save snapshot of name
                     quantity: item.quantity,
                     unitCost: item.unitCost,
                     taxRate: item.taxRate || 0,
@@ -35,12 +38,51 @@ export class PurchaseOrderService {
 
             await PurchaseOrderItem.insertMany(itemsToCreate, { session });
 
+            // 4. Handle Indent Linking and isPoRaised status
+            const indentItemIdMap = new Map();
+            data.items.forEach((i: any) => {
+                if (i.indentItemId) indentItemIdMap.set(i.indentItemId, Number(i.quantity));
+            });
+
+            if (indentItemIdMap.size > 0) {
+                const indentItemIds = Array.from(indentItemIdMap.keys());
+                const indentItems = await IndentItem.find({ _id: { $in: indentItemIds } }).populate('indentId').session(session);
+                const indentIds = [...new Set(indentItems.map(ii => ii.indentId?._id))].filter(Boolean);
+
+                if (indentIds.length > 0) {
+                    const linkedIndents = await Indent.find({ _id: { $in: indentIds }, tenantId: user.tenantId }).session(session);
+
+                    for (const ind of linkedIndents) {
+                        if (ind.isPoRaised) {
+                            throw new ApiError(400, `Purchase Order already raised for Indent #${ind._id.toString().slice(-6).toUpperCase()}`);
+                        }
+                    }
+
+                    // Update IndentItems poQty and procurementStatus
+                    const { ProcurementStatus } = await import('../models');
+                    for (const ii of indentItems) {
+                        const qtyToAdd = indentItemIdMap.get(ii._id.toString());
+                        ii.poQty = (ii.poQty || 0) + qtyToAdd;
+                        ii.procurementStatus = ProcurementStatus.IN_PO;
+                        await ii.save({ session });
+                    }
+
+                    // Update Indents to isPoRaised = true
+                    await Indent.updateMany(
+                        { _id: { $in: indentIds } },
+                        { $set: { isPoRaised: true } },
+                        { session }
+                    );
+                }
+            }
+
             po[0].totalAmount = totalAmount;
             await po[0].save({ session });
 
             await session.commitTransaction();
             return po[0];
         } catch (error) {
+            console.error("CreatePO Error:", error); // Debug log
             await session.abortTransaction();
             throw error;
         } finally {
@@ -64,6 +106,15 @@ export class PurchaseOrderService {
                 throw new ApiError(400, 'Some indent items not found or already in PO');
             }
 
+            // Check if any indent already has PO raised
+            const indentIds = [...new Set(indentItems.map((ii: any) => ii.indentId.toString()))];
+            const linkedIndents = await Indent.find({ _id: { $in: indentIds } }).session(session);
+            for (const ind of linkedIndents) {
+                if (ind.isPoRaised) {
+                    throw new ApiError(400, `Purchase Order already raised for Indent #${ind._id.toString().slice(-6).toUpperCase()}`);
+                }
+            }
+
             // 2. Create PO (DRAFT)
             const po = await PurchaseOrder.create([{
                 tenantId: user.tenantId,
@@ -71,7 +122,8 @@ export class PurchaseOrderService {
                 vendorId: data.vendorId,
                 createdBy: user._id,
                 deliveryDate: data.deliveryDate,
-                status: PurchaseOrderStatus.DRAFT,
+                status: PurchaseOrderStatus.PENDING,
+                type: 'STANDARD', // Indent items imply standard procurement
                 totalAmount: 0
             }], { session });
 
@@ -106,7 +158,14 @@ export class PurchaseOrderService {
                 { session }
             );
 
-            // 5. Save PO Total
+            // 5. Update Indents to isPoRaised = true
+            await Indent.updateMany(
+                { _id: { $in: indentIds } },
+                { $set: { isPoRaised: true } },
+                { session }
+            );
+
+            // 6. Save PO Total
             po[0].totalAmount = totalAmount;
             await po[0].save({ session });
 
@@ -124,7 +183,7 @@ export class PurchaseOrderService {
     static async updatePO(poId: string, data: any, user: any) {
         const po = await PurchaseOrder.findOne({ _id: poId, tenantId: user.tenantId });
         if (!po) throw new ApiError(404, 'PO not found');
-        if (po.status !== PurchaseOrderStatus.OPEN) throw new ApiError(400, 'Only OPEN POs can be updated');
+        if (po.status !== PurchaseOrderStatus.PENDING) throw new ApiError(400, 'Only PENDING POs can be updated');
 
         if (data.deliveryDate) po.deliveryDate = data.deliveryDate;
         if (data.vendorId) po.vendorId = data.vendorId;
@@ -137,7 +196,7 @@ export class PurchaseOrderService {
     static async cancelPO(poId: string, user: any) {
         const po = await PurchaseOrder.findOne({ _id: poId, tenantId: user.tenantId });
         if (!po) throw new ApiError(404, 'PO not found');
-        if (po.status !== PurchaseOrderStatus.OPEN) throw new ApiError(400, 'Only OPEN POs can be cancelled');
+        if (po.status !== PurchaseOrderStatus.PENDING) throw new ApiError(400, 'Only PENDING POs can be cancelled');
 
         po.status = PurchaseOrderStatus.CANCELLED;
         await po.save();
@@ -151,7 +210,7 @@ export class PurchaseOrderService {
             const po = await PurchaseOrder.findOne({ _id: poId, tenantId: user.tenantId }).session(session);
             if (!po) throw new ApiError(404, 'PO not found');
 
-            if (po.status !== PurchaseOrderStatus.OPEN && po.status !== PurchaseOrderStatus.CANCELLED) {
+            if (po.status !== PurchaseOrderStatus.PENDING) {
                 throw new ApiError(400, 'Cannot delete APPROVED or CLOSED POs');
             }
 
@@ -169,14 +228,65 @@ export class PurchaseOrderService {
     }
 
     static async approvePO(poId: string, user: any) {
-        const po = await PurchaseOrder.findOne({ _id: poId, tenantId: user.tenantId });
-        if (!po) throw new ApiError(404, 'PO not found');
-        if (po.status !== PurchaseOrderStatus.OPEN) throw new ApiError(400, 'PO is not OPEN');
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            const po = await PurchaseOrder.findOne({ _id: poId, tenantId: user.tenantId }).session(session);
+            if (!po) throw new ApiError(404, 'PO not found');
+            if (po.status !== PurchaseOrderStatus.PENDING && (po.status as string) !== 'OPEN') throw new ApiError(400, `PO is not PENDING (Current: ${po.status})`);
 
-        po.status = PurchaseOrderStatus.APPROVED;
-        po.approvedBy = user._id;
-        await po.save();
-        return po;
+            po.status = PurchaseOrderStatus.APPROVED;
+            po.approvedBy = user._id;
+            await po.save({ session });
+
+            // Auto-GRN logic removed. GRN is manually created in separate module.
+
+            await session.commitTransaction();
+            return po;
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
+        }
+    }
+
+    static async revertPO(poId: string, user: any) {
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            const po = await PurchaseOrder.findOne({ _id: poId, tenantId: user.tenantId }).session(session);
+            if (!po) throw new ApiError(404, 'PO not found');
+
+            // Allow reverting only if APPROVED
+            if (po.status !== PurchaseOrderStatus.APPROVED) {
+                throw new ApiError(400, `PO can strictly only be reverted from APPROVED status. Current status: ${po.status}`);
+            }
+
+            po.status = PurchaseOrderStatus.PENDING;
+            po.approvedBy = undefined; // Clear approval
+            await po.save({ session });
+
+            await AuditLogService.log({
+                action: 'PO_REVERT_TO_PENDING',
+                entity: 'PurchaseOrder',
+                entityId: po._id.toString(),
+                performedBy: user.userId,
+                details: {
+                    reason: 'User requested revert to PENDING'
+                },
+                tenantId: user.tenantId,
+                branchId: user.branchId
+            });
+
+            await session.commitTransaction();
+            return po;
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
+        }
     }
 
     static async patchItemQuantity(poId: string, itemId: string, quantity: number, user: any) {
@@ -185,7 +295,7 @@ export class PurchaseOrderService {
         try {
             const po = await PurchaseOrder.findOne({ _id: poId, tenantId: user.tenantId }).session(session);
             if (!po) throw new ApiError(404, 'PO not found');
-            if (po.status !== PurchaseOrderStatus.OPEN) throw new ApiError(400, 'Cannot update items in closed/approved PO');
+            if (po.status !== PurchaseOrderStatus.PENDING) throw new ApiError(400, 'Cannot update items in closed/approved PO');
 
             const poItem = await PurchaseOrderItem.findOne({ poId: po._id, itemId: itemId }).session(session);
             if (!poItem) throw new ApiError(404, 'Item not found in PO');
@@ -233,5 +343,18 @@ export class PurchaseOrderService {
         } finally {
             session.endSession();
         }
+    }
+    static async getPOById(poId: string, user: any) {
+        const po = await PurchaseOrder.findOne({ _id: poId, tenantId: user.tenantId })
+            .populate('vendorId', 'vendorName')
+            .populate('branchId', 'branchName')
+            .populate('createdBy', 'name')
+            .populate('approvedBy', 'name');
+
+        if (!po) throw new ApiError(404, 'PO not found');
+
+        const items = await PurchaseOrderItem.find({ poId: po._id }).populate('itemId', 'name code unit inventoryUom');
+
+        return { ...po.toJSON(), items };
     }
 }

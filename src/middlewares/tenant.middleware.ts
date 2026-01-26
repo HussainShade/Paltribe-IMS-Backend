@@ -11,10 +11,11 @@ export const tenantMiddleware = async (c: Context, next: Next) => {
 
 export const branchMiddleware = async (c: Context, next: Next) => {
     const branchId = c.get('branchId');
-    if (!branchId) {
-        // Some users (like SA) might not have a branch? 
-        // The rules say: "branchId: ObjectId (indexed, nullable if applicable)".
-        // If the route requires a branch, this middleware is used.
+    const isGetRequest = c.req.method === 'GET';
+    const user = c.get('user');
+    const isSuperAdmin = user?.roleCode === 'SA';
+
+    if (!branchId && !isSuperAdmin && !isGetRequest) {
         throw new AppError('Branch context required for this operation', 400);
     }
     await next();

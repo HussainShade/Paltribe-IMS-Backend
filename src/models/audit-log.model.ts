@@ -7,7 +7,7 @@ export interface IAuditLog extends Document {
     performedBy: mongoose.Types.ObjectId;
     details?: any;
     timestamp: Date;
-    tenantId: mongoose.Types.ObjectId;
+    tenantId: string;
     branchId?: mongoose.Types.ObjectId;
 }
 
@@ -19,7 +19,7 @@ const AuditLogSchema = new Schema<IAuditLog>(
         performedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
         details: { type: Schema.Types.Mixed }, // JSON payload of changes or minimal info
         timestamp: { type: Date, default: Date.now },
-        tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
+        tenantId: { type: String, ref: 'Tenant', required: true },
         branchId: { type: Schema.Types.ObjectId, ref: 'Branch' },
     },
     {
