@@ -44,10 +44,7 @@ export class ItemController {
         const query: any = { tenantId: user.tenantId };
 
         // Determine Branch Context
-        let branchId: any = user.branchId;
-        if (user.roleCode === 'SA' && !branchId) {
-            branchId = c.req.header('x-branch-id');
-        }
+        const branchId = c.get('branchId');
 
         // Filter by Branch (via Categories)
         if (branchId) {
@@ -117,6 +114,12 @@ export class ItemController {
         // For now, let's respect appropriate branch context if available.
         if (branchId) {
             stockQuery.branchId = branchId;
+        }
+
+        // Filter stock by Work Area if provided
+        const { workAreaId } = c.req.query();
+        if (workAreaId && workAreaId !== 'All') {
+            stockQuery.workAreaId = workAreaId;
         }
 
         const stocks = await InventoryStock.find(stockQuery);

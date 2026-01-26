@@ -84,7 +84,7 @@ export class GRNService {
 
         if (!grn) throw new AppError('GRN not found', 404);
 
-        const items = await GRNItem.find({ grnId: grn._id }).populate('itemId', 'name code unit');
+        const items = await GRNItem.find({ grnId: grn._id }).populate('itemId', 'itemName itemCode inventoryUom');
 
         return { ...grn.toJSON(), items };
     }

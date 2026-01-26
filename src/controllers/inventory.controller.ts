@@ -10,9 +10,9 @@ export class InventoryController {
         const branchId = c.get('branchId');
         const { workAreaId } = c.req.query();
         const query: any = {
-            tenantId: user.tenantId,
-            branchId: branchId
+            tenantId: user.tenantId
         };
+        if (branchId) query.branchId = branchId;
         if (workAreaId) query.workAreaId = workAreaId;
 
         const stock = await InventoryStock.find(query)

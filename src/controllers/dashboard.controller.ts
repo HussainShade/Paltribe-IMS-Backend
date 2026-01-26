@@ -62,7 +62,25 @@ export class DashboardController {
             const pendingIndent = await Indent.countDocuments(indentQuery);
 
             // 5. Total Active Items
-            const totalItems = await Item.countDocuments({ tenantId: user.tenantId, status: ItemStatus.ACTIVE });
+            const itemQuery: any = { tenantId: user.tenantId, status: ItemStatus.ACTIVE };
+            if (branchId) {
+                const { Category } = await import('../models');
+                const categories = await Category.find({ tenantId: user.tenantId, branchId }).select('_id');
+                const categoryIds = categories.map(cat => cat._id);
+                if (categoryIds.length > 0) {
+                    itemQuery.categoryId = { $in: categoryIds };
+                } else {
+                    // No categories in branch -> No items
+                    return c.json(new ApiResponse(200, {
+                        totalStockValue: 0,
+                        lowStockCount: 0,
+                        pendingPO: 0,
+                        pendingIndent: 0,
+                        totalItems: 0
+                    }, 'No items found for this branch'));
+                }
+            }
+            const totalItems = await Item.countDocuments(itemQuery);
 
             return c.json(new ApiResponse(200, {
                 totalStockValue,
